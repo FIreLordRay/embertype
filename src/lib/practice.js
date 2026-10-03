@@ -5,23 +5,29 @@
  *   2. generatePracticeWords() fills each word slot by picking one of those keys (worse keys
  *      more often), then a real word that contains it.
  */
-import { isPractice, keyStats } from './history.js'
+import { isTraining, keyStats } from './history.js'
 import { generateWords } from './words.js'
 
 /** How many keys one drill focuses on. More than this and the practice gets diluted. */
 export const MAX_TARGETS = 5
 
+/** Drill words are lowercase letters, joined by spaces: only these keys can be drilled. */
+const DRILLABLE = /^[a-z ]$/
+
 /**
  * The keys to drill: your highest miss rates in regular tests.
  *
- * Drills themselves don't count here. Your real typing decides what needs work, so a key
- * only leaves the list when your regular tests show you've improved on it.
+ * Training doesn't count here (drills, and lessons with their few letters). Your real typing
+ * decides what needs work, so a key only leaves the list when your regular tests show you've
+ * improved on it. Capitals and symbols from quotes are skipped: drill words can't contain them.
  *
  * @param {import('./history.js').TestResult[]} results
  * @returns {{ char: string, attempts: number, misses: number, rate: number }[]} worst first
  */
 export function practiceTargets(results, limit = MAX_TARGETS) {
-  return keyStats(results.filter((result) => !isPractice(result))).slice(0, limit)
+  return keyStats(results.filter((result) => !isTraining(result)))
+    .filter((key) => DRILLABLE.test(key.char))
+    .slice(0, limit)
 }
 
 /**

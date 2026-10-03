@@ -1,5 +1,6 @@
-import { Flame, Keyboard, Minus, Target, Trash2, TrendingDown, TrendingUp } from 'lucide-react'
+import { Flame, Keyboard, Minus, Target, TrendingDown, TrendingUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useNow } from '../../hooks/useNow.js'
 import {
   filterByMode,
   formatDuration,
@@ -14,47 +15,57 @@ import {
 import { useHistory } from '../../state/history.js'
 import { useSettings } from '../../state/settings.js'
 import Kbd from '../Kbd.jsx'
+import Consistency from './Consistency.jsx'
+import DataActions from './DataActions.jsx'
+import KeyHeatmap from './KeyHeatmap.jsx'
 import ProgressChart from './ProgressChart.jsx'
 
 /**
  * The progress dashboard: every number here is computed from your saved results
- * (see lib/history.js). One filter row at the top scopes the whole page.
+ * (see lib/history.js).
  *
- * "all" means every regular test. Practice drills use words picked to be hard for you, so
- * they'd drag your averages down unfairly; they live under their own "practice" filter.
+ * The consistency section at the top counts all your practice. Below it, one filter row
+ * scopes everything else. "all" means every regular test: practice drills and lessons use
+ * words that aren't comparable, so they have their own filters instead.
  */
 export default function StatsPage() {
-  const { results, clearHistory } = useHistory()
+  const { results, clearHistory, importResults } = useHistory()
   const { update } = useSettings()
   const [filter, setFilter] = useState('all')
-  // One clock reading per visit, so "5 minutes ago" doesn't need a ticking timer.
-  const [now] = useState(Date.now)
+  const now = useNow() // keeps "5 minutes ago" and the streak current while the page is open
 
   const available = useMemo(() => {
     const modes = MODE_KEYS.filter((key) => results.some((r) => modeKey(r) === key))
-    return results.some(isPractice) ? [...modes, 'practice'] : modes
+    if (results.some(isPractice)) modes.push('practice')
+    if (results.some((r) => r.mode === 'lesson')) modes.push('lessons')
+    return modes
   }, [results])
   const active = available.includes(filter) ? filter : 'all'
   const shown = useMemo(() => filterByMode(results, active), [results, active])
   const summary = useMemo(() => summarize(shown), [shown])
   const bests = useMemo(() => personalBests(results), [results])
   const weakKeys = useMemo(() => keyStats(shown).slice(0, 8), [shown])
+  const isTrainingView = active === 'practice' || active === 'lessons'
 
-  if (results.length === 0) return <EmptyState />
+  if (results.length === 0) return <EmptyState onImport={importResults} />
 
   return (
     <section aria-labelledby="stats-heading" className="flex animate-fade-in flex-col gap-10 motion-reduce:animate-none">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 id="stats-heading" className="text-2xl text-fg">
-          your progress
-        </h2>
+      <h2 id="stats-heading" className="text-2xl text-fg">
+        your progress
+      </h2>
+
+      <Consistency results={results} now={now} />
+
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-8">
+        <h3 className="text-lg text-fg">your tests</h3>
         <ModeFilter options={available} active={active} onChange={setFilter} />
       </div>
 
       {shown.length === 0 ? (
-        // Only drills so far: "all" (regular tests) has nothing to show yet.
+        // Only training so far: "all" (regular tests) has nothing to show yet.
         <p className="text-sub">
-          No regular tests yet, only practice drills. Take a time or words test to see your progress here.
+          No regular tests yet, only practice and lessons. Take a time, words or quote test to see your progress here.
         </p>
       ) : (
         <>
@@ -65,20 +76,22 @@ export default function StatsPage() {
             <PersonalBests bests={bests} active={active} now={now} />
             <WeakKeys
               keys={weakKeys}
-              // Drill the weak keys from here (not offered inside the practice view itself).
-              onPractice={active === 'practice' ? null : () => update({ mode: 'practice' })}
+              // Drill your weak keys from here (not offered inside the training views themselves).
+              onPractice={isTrainingView ? null : () => update({ mode: 'practice' })}
             />
           </div>
 
+          <KeyHeatmap results={shown} />
           <TestTable results={shown} now={now} />
         </>
       )}
-      <ClearHistory count={results.length} onClear={clearHistory} />
+      <DataActions results={results} onImport={importResults} onClear={clearHistory} />
     </section>
   )
 }
 
-function EmptyState() {
+/** No history yet: point at the first test, or import a file exported from another browser. */
+function EmptyState({ onImport }) {
   return (
     <section className="flex animate-fade-in flex-col items-center gap-4 py-16 text-center motion-reduce:animate-none">
       <Flame size={40} className="text-main" aria-hidden="true" />
@@ -93,6 +106,12 @@ function EmptyState() {
         <Keyboard size={18} aria-hidden="true" />
         start typing
       </a>
+      <div className="mt-4 text-xs text-sub">
+        <p>Moving from another browser? Import your exported history.</p>
+        <div className="mt-1 flex justify-center">
+          <DataActions results={[]} onImport={onImport} />
+        </div>
+      </div>
     </section>
   )
 }
@@ -281,27 +300,6 @@ function TestTable({ results, now }) {
           {showAll ? 'show recent only' : `show all ${results.length}`}
         </button>
       )}
-    </div>
-  )
-}
-
-/** Deleting everything takes two clicks; moving away cancels. */
-function ClearHistory({ count, onClear }) {
-  const [confirming, setConfirming] = useState(false)
-  return (
-    <div className="flex justify-end">
-      <button
-        type="button"
-        onClick={() => (confirming ? onClear() : setConfirming(true))}
-        onMouseLeave={() => setConfirming(false)}
-        onBlur={() => setConfirming(false)}
-        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-main ${
-          confirming ? 'bg-error/15 text-error' : 'text-sub hover:text-fg'
-        }`}
-      >
-        <Trash2 size={14} aria-hidden="true" />
-        {confirming ? `click again to delete all ${count} tests` : 'clear history'}
-      </button>
     </div>
   )
 }

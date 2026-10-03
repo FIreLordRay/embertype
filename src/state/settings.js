@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import { DEFAULT_SETTINGS, MODES } from '../config/modes.js'
+import { BOOLEAN_SETTINGS, DAILY_GOALS, DEFAULT_SETTINGS, MODES } from '../config/modes.js'
 import { THEME_IDS } from '../config/themes.js'
 
 export const STORAGE_KEY = 'embertype:settings'
@@ -32,10 +32,14 @@ export function sanitizeSettings(saved) {
   if (!saved || typeof saved !== 'object') return settings
   // Object.hasOwn, not `in`: `'toString' in MODES` is true via the prototype chain.
   if (Object.hasOwn(MODES, saved.mode)) settings.mode = saved.mode
-  // Each mode's length setting (duration, wordCount, practiceCount) must be one of its options.
+  // Each mode's length setting (duration, wordCount, quoteLength, …) must be one of its options.
   for (const { options, setting } of Object.values(MODES)) {
     if (options.includes(saved[setting])) settings[setting] = saved[setting]
   }
+  for (const key of BOOLEAN_SETTINGS) {
+    if (typeof saved[key] === 'boolean') settings[key] = saved[key]
+  }
+  if (DAILY_GOALS.includes(saved.dailyGoal)) settings.dailyGoal = saved.dailyGoal
   if (THEME_IDS.includes(saved.theme)) settings.theme = saved.theme
   return settings
 }

@@ -30,6 +30,20 @@ describe('sanitizeHistory', () => {
     expect(sanitizeHistory({ version: 1, results: [drill] })).toEqual([drill])
   })
 
+  it('keeps quotes, lessons and tests with punctuation or numbers', () => {
+    const kept = [
+      { ...valid('q'), mode: 'quote', amount: 'long' },
+      { ...valid('l'), mode: 'lesson', amount: 4 },
+      { ...valid('p'), punctuation: true, numbers: false },
+    ]
+    expect(sanitizeHistory({ version: 1, results: kept })).toEqual(kept)
+  })
+
+  it('drops records with a broken amount or extras flag', () => {
+    const broken = [{ ...valid('a'), amount: '' }, { ...valid('b'), amount: null }, { ...valid('c'), punctuation: 'yes' }]
+    expect(sanitizeHistory({ version: 1, results: broken })).toEqual([])
+  })
+
   it('drops individual broken records but keeps the rest', () => {
     const broken = [
       { ...valid('b'), wpm: 'fast' },

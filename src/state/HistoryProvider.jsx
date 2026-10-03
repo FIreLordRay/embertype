@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { HISTORY_KEY, HistoryContext, loadHistory, MAX_RESULTS, saveHistory } from './history.js'
+import { mergeResults } from '../lib/history.js'
+import { HISTORY_KEY, HistoryContext, loadHistory, MAX_RESULTS, sanitizeHistory, saveHistory } from './history.js'
 
 /**
  * Global state #2: every finished test, kept in localStorage so the stats page has a history
@@ -32,7 +33,22 @@ export function HistoryProvider({ children }) {
 
   const clearHistory = useCallback(() => setResults([]), [])
 
-  const value = useMemo(() => ({ results, addResult, clearHistory }), [results, addResult, clearHistory])
+  // An exported file goes through the same checks as saved data, then merges by id:
+  // importing the same file twice adds nothing.
+  const importResults = useCallback(
+    (fileContents) => {
+      const valid = sanitizeHistory(fileContents)
+      const { results: merged, added } = mergeResults(results, valid, MAX_RESULTS)
+      setResults(merged)
+      return { valid: valid.length, added }
+    },
+    [results],
+  )
+
+  const value = useMemo(
+    () => ({ results, addResult, clearHistory, importResults }),
+    [results, addResult, clearHistory, importResults],
+  )
 
   return <HistoryContext value={value}>{children}</HistoryContext>
 }

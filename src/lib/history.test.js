@@ -4,6 +4,8 @@ import {
   filterByMode,
   formatDuration,
   keyStats,
+  keyTotalsByKey,
+  mergeResults,
   MODE_KEYS,
   movingAverage,
   personalBests,
@@ -141,8 +143,12 @@ describe('filterByMode', () => {
     expect(filterByMode(history, 'practice').map((r) => r.id)).toEqual(['p1', 'p2'])
   })
 
-  it('knows every mode option', () => {
-    expect(MODE_KEYS).toEqual(['time 15', 'time 30', 'time 60', 'words 10', 'words 25', 'words 50'])
+  it('knows every regular test option', () => {
+    expect(MODE_KEYS).toEqual([
+      'time 15', 'time 30', 'time 60',
+      'words 10', 'words 25', 'words 50',
+      'quote short', 'quote medium', 'quote long',
+    ])
   })
 })
 
@@ -163,4 +169,57 @@ describe('timeAgo', () => {
     [now - 24 * 3_600_000, 'yesterday'],
     [now - 4 * 86_400_000, '4 days ago'],
   ])('%i → %s', (date, text) => expect(timeAgo(date, now)).toBe(text))
+})
+
+describe('extras and training', () => {
+  it('saves the punctuation and numbers settings only when they are on', () => {
+    const done = play(createInitialState({ words: ['the', 'cat'] }), keys('the cat', 0, 200))
+    const base = { id: 'x', date: 0, mode: 'words', amount: 10, ...done, elapsedMs: 1200 }
+    expect(createResult({ ...base, punctuation: true })).toMatchObject({ punctuation: true })
+    expect(createResult({ ...base, punctuation: true })).not.toHaveProperty('numbers')
+    expect(createResult(base)).not.toHaveProperty('punctuation')
+  })
+
+  it('only compares personal bests with the same punctuation and numbers settings', () => {
+    const history = [result({ id: 'plain', wpm: 80 }), result({ id: 'punct', wpm: 60, punctuation: true })]
+    expect(previousBest(history, 'time 30', 'new')).toBe(80)
+    expect(previousBest(history, 'time 30', 'new', { punctuation: true })).toBe(60)
+    expect(previousBest(history, 'time 30', 'new', { numbers: true })).toBeNull()
+  })
+
+  it('keeps lessons out of "all", with their own filter', () => {
+    const history = [result({ id: 't' }), result({ id: 'l', mode: 'lesson', amount: 4 }), result({ id: 'q', mode: 'quote', amount: 'short' })]
+    expect(filterByMode(history, 'all').map((r) => r.id)).toEqual(['t', 'q'])
+    expect(filterByMode(history, 'lessons').map((r) => r.id)).toEqual(['l'])
+  })
+
+  it('lists quotes among the regular test modes', () => {
+    expect(MODE_KEYS).toContain('quote long')
+    expect(MODE_KEYS.some((key) => key.startsWith('practice') || key.startsWith('lesson'))).toBe(false)
+  })
+})
+
+describe('keyTotalsByKey', () => {
+  it('adds capitals and symbols to the physical key that types them', () => {
+    const history = [result({ keys: { a: [10, 1], A: [5, 2], '/': [3, 0], '?': [2, 1], é: [4, 4] } })]
+    const totals = keyTotalsByKey(history)
+    expect(totals.get('a')).toEqual({ key: 'a', attempts: 15, misses: 3, rate: 0.2 })
+    expect(totals.get('/')).toEqual({ key: '/', attempts: 5, misses: 1, rate: 0.2 })
+    expect(totals.has('é')).toBe(false) // not on a US keyboard
+  })
+})
+
+describe('mergeResults', () => {
+  it('adds only new results, oldest first, and caps the total', () => {
+    const existing = [result({ id: 'a', date: 1 }), result({ id: 'b', date: 3 })]
+    const incoming = [result({ id: 'b', date: 3 }), result({ id: 'c', date: 2 }), result({ id: 'd', date: 4 })]
+    const { results, added } = mergeResults(existing, incoming, 3)
+    expect(added).toBe(2)
+    expect(results.map((r) => r.id)).toEqual(['c', 'b', 'd']) // 'a' (oldest) dropped by the cap
+  })
+
+  it('changes nothing when the same file is imported twice', () => {
+    const existing = [result({ id: 'a', date: 1 })]
+    expect(mergeResults(existing, existing, 10)).toEqual({ results: existing, added: 0 })
+  })
 })

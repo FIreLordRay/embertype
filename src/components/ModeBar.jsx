@@ -1,14 +1,15 @@
-import { Clock, Target, WholeWord } from 'lucide-react'
-import { modeAmount, MODES } from '../config/modes.js'
+import { AtSign, ChevronLeft, ChevronRight, Clock, GraduationCap, Hash, Quote, Target, WholeWord } from 'lucide-react'
+import { LESSONS } from '../config/lessons.js'
+import { EXTRAS_MODES, modeAmount, MODES } from '../config/modes.js'
 import { useSettings } from '../state/settings.js'
 
-const ICONS = { time: Clock, words: WholeWord, practice: Target }
+const ICONS = { time: Clock, words: WholeWord, quote: Quote, practice: Target, lesson: GraduationCap }
 
 /**
- * The test-mode pill: the modes, then the lengths for the selected one.
- *   ⏱ time  ⌸ words  ◎ practice  │  10  25  50
- * Built from MODES in config/modes.js, so a new mode there shows up here automatically.
- * Changing anything changes the settings, which remounts <TypingTest> with a new test.
+ * The test settings, as up to three pills that wrap onto a second line on narrow screens:
+ *   [@ punctuation  # numbers]   [time words quote practice learn]   [15 30 60]
+ * The extras only apply to time and words tests; in learn mode the lengths become a lesson
+ * picker. Changing anything changes the settings, which remounts <TypingTest> with a new test.
  */
 export default function ModeBar({ className = '' }) {
   const settings = useSettings()
@@ -17,32 +18,78 @@ export default function ModeBar({ className = '' }) {
   const selected = modeAmount(settings)
 
   return (
-    <nav aria-label="Test mode" className={`flex items-center rounded-xl bg-surface px-2 py-1 text-sm ${className}`}>
-      <div role="group" aria-label="Mode" className="flex">
+    <nav aria-label="Test mode" className={`flex flex-wrap items-center justify-center gap-2 text-sm ${className}`}>
+      {EXTRAS_MODES.includes(mode) && (
+        <div role="group" aria-label="Extras" className="flex rounded-xl bg-surface px-1.5 py-1">
+          <Toggle pressed={settings.punctuation} onClick={() => update({ punctuation: !settings.punctuation })}>
+            <AtSign size={15} aria-hidden="true" />
+            <Label>punctuation</Label>
+          </Toggle>
+          <Toggle pressed={settings.numbers} onClick={() => update({ numbers: !settings.numbers })}>
+            <Hash size={15} aria-hidden="true" />
+            <Label>numbers</Label>
+          </Toggle>
+        </div>
+      )}
+
+      <div role="group" aria-label="Mode" className="flex rounded-xl bg-surface px-1.5 py-1">
         {Object.entries(MODES).map(([id, { label }]) => {
           const Icon = ICONS[id]
           return (
             <Toggle key={id} pressed={mode === id} onClick={() => update({ mode: id })}>
               <Icon size={15} aria-hidden="true" />
-              {/* Icon-only on phones, where the labels don't fit; screen readers always get them. */}
-              <span className="sr-only sm:not-sr-only">{label}</span>
+              <Label>{label}</Label>
             </Toggle>
           )
         })}
       </div>
 
-      <span aria-hidden="true" className="mx-1.5 h-5 w-[3px] shrink-0 rounded-full bg-bg sm:mx-2" />
-
-      <div role="group" aria-label={unit} className="flex">
-        {options.map((n) => (
-          <Toggle key={n} pressed={n === selected} onClick={() => update({ [setting]: n })}>
-            {n}
-          </Toggle>
-        ))}
-      </div>
+      {mode === 'lesson' ? (
+        <LessonPicker lesson={selected} onChange={(lesson) => update({ lesson })} />
+      ) : (
+        <div role="group" aria-label={unit} className="flex rounded-xl bg-surface px-1.5 py-1">
+          {options.map((value) => (
+            <Toggle key={value} pressed={value === selected} onClick={() => update({ [setting]: value })}>
+              {value}
+            </Toggle>
+          ))}
+        </div>
+      )}
     </nav>
   )
 }
+
+/** `‹ lesson 4 ›` plus a link to the full course page. */
+function LessonPicker({ lesson, onChange }) {
+  return (
+    <div className="flex items-center rounded-xl bg-surface px-1.5 py-1">
+      <IconButton label="previous lesson" disabled={lesson <= 1} onClick={() => onChange(lesson - 1)}>
+        <ChevronLeft size={16} aria-hidden="true" />
+      </IconButton>
+      <a
+        href="#/learn"
+        onMouseDown={(e) => e.preventDefault()}
+        title="all lessons"
+        className="rounded-lg px-2 py-1.5 text-main transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-main"
+      >
+        lesson {lesson}
+        <span className="text-sub"> / {LESSONS.length}</span>
+      </a>
+      <IconButton label="next lesson" disabled={lesson >= LESSONS.length} onClick={() => onChange(lesson + 1)}>
+        <ChevronRight size={16} aria-hidden="true" />
+      </IconButton>
+    </div>
+  )
+}
+
+/** Mode and extras labels show from the md breakpoint up; below that, icons only. */
+function Label({ children }) {
+  return <span className="sr-only md:not-sr-only">{children}</span>
+}
+
+// Buttons here don't take focus on click; otherwise the next Space would "press" them
+// instead of typing. Keyboard users can still Tab here and press Enter or Space.
+const keepFocus = (e) => e.preventDefault()
 
 function Toggle({ pressed, onClick, children }) {
   return (
@@ -50,14 +97,27 @@ function Toggle({ pressed, onClick, children }) {
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
-      // Don't take focus on click; otherwise the next Space would "press" this button
-      // instead of typing. Keyboard users can still Tab here and press Enter/Space.
-      onMouseDown={(e) => e.preventDefault()}
+      onMouseDown={keepFocus}
       // Selected gets a tinted pill as well as the accent colour: in some themes accent and
       // grey text are too close to tell apart by colour alone.
       className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-colors focus-visible:outline-2 focus-visible:outline-main ${
         pressed ? 'bg-main/15 text-main' : 'text-sub hover:text-fg'
       }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function IconButton({ label, disabled, onClick, children }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      onMouseDown={keepFocus}
+      className="rounded-lg p-1.5 text-sub transition-colors hover:text-fg disabled:opacity-30 focus-visible:outline-2 focus-visible:outline-main"
     >
       {children}
     </button>

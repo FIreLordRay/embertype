@@ -44,7 +44,7 @@ export default function ThemeSwitcher({ className = '' }) {
       >
         <Palette size={16} aria-hidden="true" />
         {/* Icon-only on phones; the aria-label above always says "theme: ember". */}
-        <span className="hidden sm:inline">{theme}</span>
+        <span className="hidden md:inline">{theme}</span>
       </button>
 
       {open && (

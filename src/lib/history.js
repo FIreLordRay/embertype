@@ -4,8 +4,9 @@
  * The list itself is saved in localStorage (see src/state/history.js). Everything the stats
  * page shows is computed from it here, so all of it can be unit-tested without a browser.
  */
-import { MODES } from '../config/modes.js'
+import { MODES, TRAINING_MODES } from '../config/modes.js'
 import { CHARS_PER_WORD, computeStats } from './metrics.js'
+import { keyFor } from './qwerty.js'
 
 /**
  * One finished test, as saved.
@@ -13,8 +14,9 @@ import { CHARS_PER_WORD, computeStats } from './metrics.js'
  * @typedef {Object} TestResult
  * @property {string} id            unique per test
  * @property {number} date          when it finished (Date.now())
- * @property {'time' | 'words' | 'practice'} mode
- * @property {number} amount        seconds (time mode) or word count (words, practice)
+ * @property {'time' | 'words' | 'quote' | 'practice' | 'lesson'} mode
+ * @property {number | string} amount
+ *   seconds (time), word count (words, practice), length group (quote), or lesson number
  * @property {number} wpm
  * @property {number} raw
  * @property {number} accuracy
@@ -22,6 +24,8 @@ import { CHARS_PER_WORD, computeStats } from './metrics.js'
  * @property {number} ms            how long the test took
  * @property {Record<string, [number, number]>} keys
  *   per expected character: [attempts, misses], e.g. { e: [42, 3] }
+ * @property {boolean} [punctuation]  time/words tests typed with punctuation mixed in
+ * @property {boolean} [numbers]      …and with numbers mixed in
  * @property {string[]} [targets]   practice drills only: the keys the drill focused on
  */
 
@@ -29,18 +33,22 @@ import { CHARS_PER_WORD, computeStats } from './metrics.js'
 export const MIN_CORRECT_CHARS = CHARS_PER_WORD
 
 /**
- * Practice drills are training, not tests: their words are chosen to be hard for you, so they
- * stay out of "all", personal bests and your speed trend. They get their own filter instead.
+ * Practice drills and lessons are training, not tests: their words are picked to be hard or
+ * limited to a few letters, so they stay out of "all", personal bests and the speed trend.
  */
+export const isTraining = (result) => TRAINING_MODES.includes(result.mode)
 export const isPractice = (result) => result.mode === 'practice'
 
-/** Every regular test option in nav order: ['time 15', 'time 30', 'time 60', 'words 10', …] */
+/** Every regular test option in nav order: ['time 15', …, 'words 50', 'quote short', …] */
 export const MODE_KEYS = Object.entries(MODES)
-  .filter(([mode]) => mode !== 'practice')
+  .filter(([mode]) => !TRAINING_MODES.includes(mode))
   .flatMap(([mode, { options }]) => options.map((n) => `${mode} ${n}`))
 
-/** 'time 30', 'words 25', 'practice 10', … */
+/** 'time 30', 'words 25', 'quote long', 'practice 10', 'lesson 4', … */
 export const modeKey = (result) => `${result.mode} ${result.amount}`
+
+/** Same punctuation and numbers settings? Only then are two speeds fair to compare. */
+export const sameExtras = (a, b) => Boolean(a.punctuation) === Boolean(b.punctuation) && Boolean(a.numbers) === Boolean(b.numbers)
 
 /**
  * Attempts and misses for every key in a test's input log.
@@ -62,12 +70,12 @@ export function countKeys(log) {
 /**
  * Build the record to save for a finished test, or null if it's too short to count.
  *
- * @param {{ id: string, date: number, mode: 'time' | 'words' | 'practice', amount: number,
+ * @param {{ id: string, date: number, mode: TestResult['mode'], amount: number | string,
  *           target: string, typed: string, log: import('./typingEngine.js').InputEvent[],
- *           elapsedMs: number, targets?: string[] }} test
+ *           elapsedMs: number, targets?: string[], punctuation?: boolean, numbers?: boolean }} test
  * @returns {TestResult | null}
  */
-export function createResult({ id, date, mode, amount, target, typed, log, elapsedMs, targets = [] }) {
+export function createResult({ id, date, mode, amount, target, typed, log, elapsedMs, targets = [], punctuation = false, numbers = false }) {
   const stats = computeStats({ target, typed, log, elapsedMs })
   if (stats.correctChars < MIN_CORRECT_CHARS) return null
 
@@ -82,18 +90,43 @@ export function createResult({ id, date, mode, amount, target, typed, log, elaps
     errors: stats.errors,
     ms: elapsedMs,
     keys: countKeys(log),
+    // Only stored when on, so plain tests stay as small as before.
+    ...(punctuation && { punctuation }),
+    ...(numbers && { numbers }),
     ...(targets.length > 0 && { targets }),
   }
 }
 
 /**
  * @param {TestResult[]} results
- * @param {string} key  'all' (every regular test), 'practice' (every drill), or a mode key
+ * @param {string} key  'all' (every regular test), 'practice' (drills), 'lessons', or a mode key
  */
 export function filterByMode(results, key) {
-  if (key === 'all') return results.filter((result) => !isPractice(result))
+  if (key === 'all') return results.filter((result) => !isTraining(result))
   if (key === 'practice') return results.filter(isPractice)
+  if (key === 'lessons') return results.filter((result) => result.mode === 'lesson')
   return results.filter((result) => modeKey(result) === key)
+}
+
+/**
+ * Combine imported results with the ones already saved: matched by id (so importing the same
+ * file twice changes nothing), oldest first, newest `max` kept.
+ *
+ * @param {TestResult[]} existing
+ * @param {TestResult[]} incoming
+ * @param {number} max
+ * @returns {{ results: TestResult[], added: number }}
+ */
+export function mergeResults(existing, incoming, max) {
+  const byId = new Map(existing.map((result) => [result.id, result]))
+  let added = 0
+  for (const result of incoming) {
+    if (byId.has(result.id)) continue
+    byId.set(result.id, result)
+    added++
+  }
+  const results = [...byId.values()].sort((a, b) => a.date - b.date).slice(-max)
+  return { results, added }
 }
 
 /**
@@ -136,18 +169,42 @@ export function personalBests(results) {
 
 /**
  * Your best wpm in a mode *before* a given test, or null if that test is your first.
- * The results screen uses it to spot a new personal best.
+ * The results screen uses it to spot a new personal best. Only tests with the same
+ * punctuation and numbers settings count: a run with punctuation shouldn't have to beat a
+ * plain one.
  *
  * @param {TestResult[]} results
  * @param {string} key        mode key, e.g. 'time 30'
  * @param {string} excludeId  the test being judged
+ * @param {{ punctuation?: boolean, numbers?: boolean }} [extras]
  */
-export function previousBest(results, key, excludeId) {
+export function previousBest(results, key, excludeId, extras = {}) {
   let best = null
   for (const result of results) {
-    if (result.id !== excludeId && modeKey(result) === key && (best === null || result.wpm > best)) best = result.wpm
+    if (result.id === excludeId || modeKey(result) !== key || !sameExtras(result, extras)) continue
+    if (best === null || result.wpm > best) best = result.wpm
   }
   return best
+}
+
+/**
+ * Attempts, misses and miss rate for every character typed across the given results.
+ *
+ * @param {TestResult[]} results
+ * @returns {Map<string, { char: string, attempts: number, misses: number, rate: number }>}
+ */
+export function keyTotals(results) {
+  const totals = new Map()
+  for (const result of results) {
+    for (const [char, [attempts, misses]] of Object.entries(result.keys)) {
+      const total = totals.get(char) ?? { char, attempts: 0, misses: 0, rate: 0 }
+      total.attempts += attempts
+      total.misses += misses
+      total.rate = total.misses / total.attempts
+      totals.set(char, total)
+    }
+  }
+  return totals
 }
 
 /**
@@ -161,19 +218,30 @@ export function previousBest(results, key, excludeId) {
  * @returns {{ char: string, attempts: number, misses: number, rate: number }[]} worst first
  */
 export function keyStats(results, minAttempts = 20) {
-  const totals = new Map()
-  for (const result of results) {
-    for (const [char, [attempts, misses]] of Object.entries(result.keys)) {
-      const total = totals.get(char) ?? { char, attempts: 0, misses: 0 }
-      total.attempts += attempts
-      total.misses += misses
-      totals.set(char, total)
-    }
-  }
-  return [...totals.values()]
+  return [...keyTotals(results).values()]
     .filter((total) => total.attempts >= minAttempts && total.misses > 0)
-    .map((total) => ({ ...total, rate: total.misses / total.attempts }))
     .sort((a, b) => b.rate - a.rate || b.misses - a.misses)
+}
+
+/**
+ * Like keyTotals, but per *physical key*: "A" and "a" both count toward the A key, "?"
+ * toward the / key. This is what the keyboard heatmap colours.
+ *
+ * @param {TestResult[]} results
+ * @returns {Map<string, { key: string, attempts: number, misses: number, rate: number }>}
+ */
+export function keyTotalsByKey(results) {
+  const byKey = new Map()
+  for (const { char, attempts, misses } of keyTotals(results).values()) {
+    const key = keyFor(char)?.key
+    if (key === undefined) continue // a character a US keyboard can't type directly
+    const total = byKey.get(key) ?? { key, attempts: 0, misses: 0, rate: 0 }
+    total.attempts += attempts
+    total.misses += misses
+    total.rate = total.misses / total.attempts
+    byKey.set(key, total)
+  }
+  return byKey
 }
 
 /**

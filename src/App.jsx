@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useState } from 'react'
-import { modeAmount } from './config/modes.js'
+import { EXTRAS_MODES, modeAmount } from './config/modes.js'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Footer from './components/Footer.jsx'
+import ModeBar from './components/ModeBar.jsx'
 import NavBar from './components/NavBar.jsx'
 import TypingTest from './components/TypingTest.jsx'
 import { useHashRoute } from './hooks/useHashRoute.js'
@@ -8,8 +10,9 @@ import { HistoryProvider } from './state/HistoryProvider.jsx'
 import { SettingsProvider } from './state/SettingsProvider.jsx'
 import { useSettings } from './state/settings.js'
 
-// The stats page pulls in Recharts: load it only when someone opens it.
+// These pages pull in charts or the course: load them only when someone opens them.
 const StatsPage = lazy(() => import('./components/stats/StatsPage.jsx'))
+const LessonsPage = lazy(() => import('./components/learn/LessonsPage.jsx'))
 
 export default function App() {
   return (
@@ -25,24 +28,42 @@ function Layout() {
   const route = useHashRoute()
   const settings = useSettings()
   const { mode } = settings
-  const amount = modeAmount(settings) // seconds in time mode, a word count otherwise
+  const amount = modeAmount(settings) // seconds, a word count, a quote length or a lesson number
+  // Punctuation and numbers only exist for time and words tests.
+  const extras = EXTRAS_MODES.includes(mode) ? { punctuation: settings.punctuation, numbers: settings.numbers } : {}
 
   // Bumping this remounts <TypingTest>: a brand-new test with completely fresh state.
   const [testNumber, setTestNumber] = useState(0)
   const restart = useCallback(() => setTestNumber((n) => n + 1), [])
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-10 px-4 py-6 sm:px-8 sm:py-8">
+    <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-8 px-4 py-6 sm:px-8 sm:py-8">
       <NavBar route={route} />
+      {route === 'type' && <ModeBar className="focus-fade" />}
       <main className="flex flex-1 flex-col justify-center pb-10">
-        {route === 'stats' ? (
-          <Suspense fallback={null}>
-            <StatsPage />
-          </Suspense>
-        ) : (
-          // The key ties a test to its settings: change the mode or its length → new test.
-          <TypingTest key={`${mode}-${amount}-${testNumber}`} mode={mode} amount={amount} onRestart={restart} />
-        )}
+        {/* Keyed by route, so navigating to another page clears an error shown here. */}
+        <ErrorBoundary key={route}>
+          {route === 'stats' && (
+            <Suspense fallback={null}>
+              <StatsPage />
+            </Suspense>
+          )}
+          {route === 'learn' && (
+            <Suspense fallback={null}>
+              <LessonsPage />
+            </Suspense>
+          )}
+          {route === 'type' && (
+            // The key ties a test to everything that decides its words: change any of them → new test.
+            <TypingTest
+              key={`${mode}-${amount}-${Boolean(extras.punctuation)}-${Boolean(extras.numbers)}-${testNumber}`}
+              mode={mode}
+              amount={amount}
+              extras={extras}
+              onRestart={restart}
+            />
+          )}
+        </ErrorBoundary>
       </main>
       <Footer />
     </div>

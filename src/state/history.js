@@ -14,8 +14,14 @@ const VERSION = 1
  *   results: import('../lib/history.js').TestResult[],
  *   addResult: (result: import('../lib/history.js').TestResult) => void,
  *   clearHistory: () => void,
+ *   importResults: (fileContents: unknown) => { valid: number, added: number },
  * }} HistoryValue
  */
+
+/** The export file format: the same envelope localStorage uses, so import can reuse its checks. */
+export function exportHistory(results) {
+  return JSON.stringify({ version: VERSION, results }, null, 2)
+}
 
 /** @type {import('react').Context<HistoryValue | null>} */
 export const HistoryContext = createContext(null)
@@ -67,11 +73,13 @@ function isResult(r) {
     typeof r.id === 'string' &&
     Number.isFinite(r.date) &&
     Object.hasOwn(MODES, r.mode) &&
-    Number.isFinite(r.amount) &&
+    // A number (seconds, words, lesson) or a quote length name.
+    (Number.isFinite(r.amount) || (typeof r.amount === 'string' && r.amount.length > 0)) &&
     [r.wpm, r.raw, r.accuracy, r.errors, r.ms].every(Number.isFinite) &&
     r.keys !== null &&
     typeof r.keys === 'object' &&
     Object.values(r.keys).every((v) => Array.isArray(v) && v.length === 2 && v.every(Number.isFinite)) &&
+    [r.punctuation, r.numbers].every((flag) => flag === undefined || typeof flag === 'boolean') &&
     // Practice drills also record which keys they targeted.
     (r.targets === undefined || (Array.isArray(r.targets) && r.targets.every((c) => typeof c === 'string' && c.length === 1)))
   )

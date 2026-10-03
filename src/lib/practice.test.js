@@ -25,9 +25,14 @@ describe('practiceTargets', () => {
     expect(practiceTargets([result('words', keys)])).toHaveLength(MAX_TARGETS)
   })
 
-  it("ignores drills: only regular tests decide what's weak", () => {
-    const history = [result('time', { a: [50, 5] }), result('practice', { z: [50, 40] })]
+  it("ignores drills and lessons: only regular tests decide what's weak", () => {
+    const history = [result('time', { a: [50, 5] }), result('practice', { z: [50, 40] }), result('lesson', { f: [50, 30] })]
     expect(practiceTargets(history).map((t) => t.char)).toEqual(['a'])
+  })
+
+  it('skips capitals and symbols, which drill words never contain', () => {
+    const history = [result('quote', { T: [40, 20], ',': [40, 16], k: [40, 4] })]
+    expect(practiceTargets(history).map((t) => t.char)).toEqual(['k'])
   })
 })
 

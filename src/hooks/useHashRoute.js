@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 
-/** The app's two pages, addressed by the URL hash: #/ (type) and #/stats. */
-const ROUTES = { '#/stats': 'stats' }
+/** The app's pages, addressed by the URL hash: #/ (type), #/learn and #/stats. */
+const ROUTES = { '#/learn': 'learn', '#/stats': 'stats' }
 
 /**
- * A tiny router. Hash URLs need no server configuration, the browser's back button works,
- * and http://localhost:4173/#/stats can be bookmarked straight to the dashboard.
+ * A tiny router. Hash URLs need no server configuration (they work as-is on GitHub Pages),
+ * the browser's back button works, and any page can be bookmarked.
  *
- * @returns {'type' | 'stats'}
+ * @returns {'type' | 'learn' | 'stats'}
  */
 export function useHashRoute() {
   const [route, setRoute] = useState(readRoute)
@@ -22,5 +22,5 @@ export function useHashRoute() {
 }
 
 function readRoute() {
-  return ROUTES[window.location.hash] ?? 'type'
+  return Object.hasOwn(ROUTES, window.location.hash) ? ROUTES[window.location.hash] : 'type'
 }

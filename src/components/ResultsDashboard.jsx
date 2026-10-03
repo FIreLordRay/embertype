@@ -1,36 +1,43 @@
-import { ChartLine, Flame, Minus, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react'
+import { ChartLine, CircleCheck, Flame, Minus, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react'
 import { useMemo } from 'react'
+import { LESSONS, PASS_ACCURACY, PASS_WPM } from '../config/lessons.js'
+import { TRAINING_MODES } from '../config/modes.js'
 import { countKeys, MIN_CORRECT_CHARS, previousBest } from '../lib/history.js'
+import { lessonPassed } from '../lib/lessons.js'
 import { buildTimeline, computeStats, missedKeys } from '../lib/metrics.js'
 import { useHistory } from '../state/history.js'
+import { useSettings } from '../state/settings.js'
 import Kbd from './Kbd.jsx'
 import PerformanceChart from './PerformanceChart.jsx'
 
 /**
  * The summary shown when a test ends: final wpm and accuracy, the supporting numbers,
- * the per-second chart, and the keys worth practising. After a practice drill it also
- * reports how each drilled key went compared with your usual miss rate.
+ * the per-second chart, and the keys worth practising. Depending on the mode it also shows
+ * the lesson outcome, how each drilled key went, or who wrote the quote.
  *
  * Everything is computed from the finished engine state with the same pure functions the
  * live display uses, so the results can't disagree with what you saw while typing.
  *
- * @param {{ state: import('../lib/typingEngine.js').EngineState, mode: 'time' | 'words' | 'practice',
- *           amount: number, targets?: { char: string, rate: number }[], onRestart: () => void }} props
+ * @param {{ state: import('../lib/typingEngine.js').EngineState,
+ *           mode: 'time' | 'words' | 'quote' | 'practice' | 'lesson', amount: number | string,
+ *           setup: import('../lib/testSetup.js').TestSetup, onRestart: () => void }} props
  */
-export default function ResultsDashboard({ state, mode, amount, targets = [], onRestart }) {
+export default function ResultsDashboard({ state, mode, amount, setup, onRestart }) {
   const { id, target, typed, log, startedAt, endedAt } = state
+  const { targets, quote, extras } = setup
   const elapsedMs = endedAt - startedAt
   const testName = `${mode} ${amount}`
-  const isDrill = mode === 'practice'
+  const isTraining = TRAINING_MODES.includes(mode)
+  const extrasLabel = [extras.punctuation && 'punctuation', extras.numbers && 'numbers'].filter(Boolean).join(' and ')
 
   const stats = useMemo(() => computeStats({ target, typed, log, elapsedMs }), [target, typed, log, elapsedMs])
   const timeline = useMemo(() => buildTimeline({ target, log, elapsedMs }), [target, log, elapsedMs])
   const missed = useMemo(() => missedKeys(log), [log])
 
-  // Compare with your best in this mode *before* this test (excluded by id), so the answer
-  // is the same whether or not this test has been saved yet.
+  // Compare with your best for exactly this test (same extras) *before* this one (excluded by
+  // id), so the answer is the same whether or not this test has been saved yet.
   const { results } = useHistory()
-  const best = useMemo(() => previousBest(results, testName, id), [results, testName, id])
+  const best = useMemo(() => previousBest(results, testName, id, extras), [results, testName, id, extras])
   const saved = stats.correctChars >= MIN_CORRECT_CHARS
   // Floored like every displayed number: 87.4 → 87.9 doesn't read as a new best.
   const gain = best === null ? 0 : Math.floor(stats.wpm) - Math.floor(best)
@@ -41,11 +48,14 @@ export default function ResultsDashboard({ state, mode, amount, targets = [], on
         Results
       </h2>
 
-      {/* No personal bests for drills: their words are picked to be hard, so they'd be unfair. */}
-      {saved && gain > 0 && !isDrill && (
+      {mode === 'lesson' && <LessonOutcome lesson={amount} stats={stats} saved={saved} />}
+
+      {/* No personal bests for training: drill and lesson words aren't comparable. */}
+      {saved && gain > 0 && !isTraining && (
         <p role="status" className="flex items-center gap-2 text-main">
           <Flame size={18} aria-hidden="true" />
-          new personal best for {testName}: +{gain} wpm
+          new personal best for {testName}
+          {extrasLabel && ` with ${extrasLabel}`}: +{gain} wpm
         </p>
       )}
       {!saved && (
@@ -64,14 +74,14 @@ export default function ResultsDashboard({ state, mode, amount, targets = [], on
       </div>
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
-        <Tile label="test" value={testName} note={isDrill ? 'drill' : 'english'} />
+        <Tile label="test" value={testName} note={testNote(mode, amount, quote, extrasLabel)} />
         <Tile label="raw" value={Math.floor(stats.raw)} note="every keystroke counted" />
         <Tile label="errors" value={stats.errors} note="wrong keys, fixed or not" />
         <Tile label="characters" value={`${stats.correctChars}/${stats.incorrectChars}`} note="correct / incorrect" />
         <Tile label="time" value={`${Number((elapsedMs / 1000).toFixed(1))}s`} note="first key to last" />
       </dl>
 
-      {isDrill && targets.length > 0 && <DrillReport targets={targets} log={log} />}
+      {mode === 'practice' && targets.length > 0 && <DrillReport targets={targets} log={log} />}
 
       <MissedKeys keys={missed} />
 
@@ -83,7 +93,7 @@ export default function ResultsDashboard({ state, mode, amount, targets = [], on
             className="flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-fg transition-colors hover:bg-main hover:text-bg focus-visible:outline-2 focus-visible:outline-main"
           >
             <RotateCcw size={18} aria-hidden="true" />
-            {isDrill ? 'next drill' : 'next test'}
+            {{ practice: 'next drill', lesson: 'try again' }[mode] ?? 'next test'}
           </button>
           <a
             href="#/stats"
@@ -98,6 +108,56 @@ export default function ResultsDashboard({ state, mode, amount, targets = [], on
         </p>
       </div>
     </section>
+  )
+}
+
+/** The small print under the test name: what kind of words they were. */
+function testNote(mode, amount, quote, extrasLabel) {
+  if (mode === 'quote') return `by ${quote.author}`
+  if (mode === 'lesson') return LESSONS[amount - 1].title
+  if (mode === 'practice') return 'drill'
+  return extrasLabel ? `english, ${extrasLabel}` : 'english'
+}
+
+/**
+ * Passed or not yet. A pass offers the next lesson; a miss says exactly what was short.
+ * Accuracy comes first in the course: speed built on mistakes is hard to unlearn.
+ */
+function LessonOutcome({ lesson, stats, saved }) {
+  const { update } = useSettings()
+  const next = LESSONS[lesson] // lessons are numbered from 1, so this is the following one
+
+  if (saved && lessonPassed(stats)) {
+    return (
+      <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="flex items-center gap-2 text-correct">
+          <CircleCheck size={18} aria-hidden="true" />
+          lesson {lesson} passed
+        </span>
+        {next ? (
+          <button
+            type="button"
+            onClick={() => update({ lesson: lesson + 1 })}
+            className="rounded-lg bg-main px-4 py-2 text-sm text-bg transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-main"
+          >
+            next: lesson {lesson + 1}
+            {next.keys && ` (new keys ${[...next.keys].join(' ')})`}
+          </button>
+        ) : (
+          <span className="text-fg">That's the whole course. Every letter, by touch.</span>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <p role="status" className="text-sub">
+      Not passed yet: you need {PASS_ACCURACY}% accuracy and {PASS_WPM} wpm. This time:{' '}
+      <span className="text-fg">
+        {Math.floor(stats.accuracy)}% and {Math.floor(stats.wpm)} wpm
+      </span>
+      . Press <Kbd>tab</Kbd> to try again.
+    </p>
   )
 }
 

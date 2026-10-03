@@ -16,18 +16,23 @@ const CHAR_CLASS = {
  *  - Characters sit in one inline-block box per word, so lines only break between words.
  *  - Only three lines show. When the caret reaches the third, the text slides up a line.
  *  - The caret is one absolutely-positioned bar that glides to the active character.
+ *  - The ghost caret (race your best) glides to where your personal best would be by now.
  *
- * @param {{ target: string, typed: string, status: import('../lib/typingEngine.js').Status }} props
+ * @param {{ target: string, typed: string, status: import('../lib/typingEngine.js').Status,
+ *           ghostIndex?: number | null }} props
  */
-function Words({ target, typed, status }) {
+function Words({ target, typed, status, ghostIndex = null }) {
   const words = useMemo(() => splitWords(target), [target])
   const textRef = useRef(null)
   const caretRef = useRef(null)
+  const ghostRef = useRef(null)
 
-  // After every render (each keystroke), move the caret and scroll the lines. These are
-  // direct style writes rather than React state: moving a caret shouldn't cost a re-render.
+  // After every render (each keystroke, and each move of the ghost), place both carets and
+  // scroll the lines. These are direct style writes rather than React state: moving a caret
+  // shouldn't cost a re-render.
   useLayoutEffect(() => {
     placeCaret(textRef.current, caretRef.current)
+    placeGhost(textRef.current, ghostRef.current, words, ghostIndex)
   })
 
   // Characters can also move without a keystroke: a window resize, a web font finishing
@@ -51,6 +56,12 @@ function Words({ target, typed, status }) {
     // 3 visible lines: height = 3 × line-height (1.6em). Font size sets the scale.
     <div className="relative h-[4.8em] select-none overflow-hidden text-[1.375rem] leading-[1.6] sm:text-[1.75rem]">
       <div ref={textRef} className="relative transition-transform duration-200 ease-out motion-reduce:transition-none">
+        <div
+          ref={ghostRef}
+          aria-hidden="true"
+          title="your personal best's pace"
+          className="pointer-events-none absolute left-0 top-0 -ml-[0.05em] w-[0.1em] rounded-full bg-sub opacity-0 transition-[transform,opacity] duration-200 ease-linear motion-reduce:transition-none"
+        />
         <div
           ref={caretRef}
           aria-hidden="true"
@@ -80,7 +91,7 @@ export default memo(Words)
  */
 const Word = memo(function Word({ text, start, typed, active }) {
   return (
-    <span className="inline-block">
+    <span className="inline-block" data-start={start}>
       {[...text].map((char, i) => {
         let state = 'pending'
         if (i < typed.length) state = typed[i] === char ? 'correct' : 'incorrect'
@@ -94,7 +105,8 @@ const Word = memo(function Word({ text, start, typed, active }) {
             // A mistyped space has no glyph to colour, so tint its background instead.
             className={state === 'incorrect' && isSpace ? 'rounded-[0.12em] bg-error/40' : CHAR_CLASS[state]}
           >
-            {isSpace ? ' ' : char}
+            {/* A non-breaking space keeps its width, so a mistyped space can still show. */}
+            {isSpace ? <>&nbsp;</> : char}
           </span>
         )
       })}
@@ -130,4 +142,31 @@ function placeCaret(text, caret) {
 
   caret.style.height = `${char.offsetHeight}px`
   caret.style.transform = `translate(${char.offsetLeft}px, ${char.offsetTop}px)`
+}
+
+/**
+ * Put the ghost caret on character `index`, or hide it (null: no personal best to race,
+ * or the test isn't running). Finds the word by binary search on the start offsets,
+ * then the character inside it.
+ */
+function placeGhost(text, ghost, words, index) {
+  if (!ghost) return
+  let char = null
+  if (text && index !== null) {
+    let lo = 0
+    let hi = words.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1
+      if (words[mid].start <= index) lo = mid
+      else hi = mid - 1
+    }
+    char = text.querySelector(`[data-start="${words[lo].start}"]`)?.children[index - words[lo].start] ?? null
+  }
+  if (!char) {
+    ghost.style.opacity = '0'
+    return
+  }
+  ghost.style.opacity = '0.7'
+  ghost.style.height = `${char.offsetHeight}px`
+  ghost.style.transform = `translate(${char.offsetLeft}px, ${char.offsetTop}px)`
 }
