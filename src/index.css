@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THEMES
+   A theme is nothing but a set of CSS variables scoped to [data-theme="…"].
+   Switching theme = changing one attribute on <html> (SettingsProvider does it).
+   React doesn't re-render anything; the browser just re-resolves the variables.
+
+   To add a theme: copy a block, change the values, add its id to src/config/themes.js.
+
+   Every palette was run through a contrast + colour-blindness validator:
+   untyped text is ≥ 4.5:1 against the background, and correct/error characters
+   stay distinguishable for red-green colour-blind readers (OKLab ΔE ≥ 9).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="ember"] {
+  /* FireLordRay "Dark Ember" */
+  --bg: #100c0a;
+  --surface: #191310;
+  --line: #332a22;
+  --fg: #f7f2ec;
+  --sub: #8a7e72; /* untyped text, inactive controls */
+  --muted: #8a7e72; /* de-emphasised chart series (raw wpm) */
+  --main: #f59e0b; /* accent: selected mode, timer, wpm line */
+  --caret: #fbbf24;
+  --correct: #a8c66c;
+  --error: #f05252;
+  --typeface: "JetBrains Mono Variable", ui-monospace, monospace;
+  --glow: none;
+  color-scheme: dark;
+}
+
+[data-theme="dark"] {
+  --bg: #1e1f24;
+  --surface: #26282e;
+  --line: #363944;
+  --fg: #e6e7eb;
+  --sub: #858a96;
+  --muted: #6c707c;
+  --main: #7aa2f7;
+  --caret: #7aa2f7;
+  --correct: #9ece6a;
+  --error: #f7768e;
+  --typeface: "Roboto Mono Variable", ui-monospace, monospace;
+  --glow: none;
+  color-scheme: dark;
+}
+
+[data-theme="cyberpunk"] {
+  --bg: #0b0a14;
+  --surface: #14122a;
+  --line: #2a2550;
+  --fg: #e8e6ff;
+  --sub: #7a74b4;
+  --muted: #7a74b4;
+  --main: #fcee09;
+  --caret: #00f0ff;
+  --correct: #00ff9f;
+  --error: #ff2a6d;
+  --typeface: "Share Tech Mono", ui-monospace, monospace;
+  /* Themes can carry effects, not just colours: typed characters glow in their own colour. */
+  --glow: 0 0 0.45em color-mix(in oklab, currentColor 60%, transparent);
+  color-scheme: dark;
+}
+
+[data-theme="vintage"] {
+  --bg: #f1e6cf;
+  --surface: #e8dabd;
+  --line: #d3c19c;
+  --fg: #3a2e26;
+  --sub: #76644d;
+  --muted: #6b7a8f;
+  --main: #8c3b2e;
+  --caret: #8c3b2e;
+  --correct: #2f6f5a;
+  --error: #b42318;
+  --typeface: "Special Elite", "Courier New", monospace;
+  --glow: none;
+  color-scheme: light;
+}
+
+/* Expose the variables as Tailwind utilities: bg-bg, bg-surface, border-line, text-fg,
+   text-sub, text-main, bg-caret, text-correct, text-error, bg-error/30, font-typing, …
+
+   Why `inline`: a plain @theme would define --color-bg once on :root and utilities would
+   read that copy, so a nested [data-theme] couldn't override it. With `inline`, utilities
+   read var(--bg) directly, so ANY element can re-theme its subtree — which is how each row
+   in the theme picker previews its own theme. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-sub: var(--sub);
+  --color-muted: var(--muted);
+  --color-main: var(--main);
+  --color-caret: var(--caret);
+  --color-correct: var(--correct);
+  --color-error: var(--error);
+  --font-typing: var(--typeface);
+}
+
+@theme {
+  --animate-blink: blink 1s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.35s ease-out both;
+
+  @keyframes blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* Neon text-shadow for themes that define --glow (cyberpunk); a no-op elsewhere. */
+@utility glow {
+  text-shadow: var(--glow);
+}
+
+@layer base {
+  body {
+    @apply bg-bg font-typing text-fg antialiased;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+  }
+
+  /* Tailwind v4 gives buttons the default cursor; we want the pointer back. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--main) 35%, transparent);
+  }
+}
+
+/* Focus mode: while a test runs, fade the chrome so only the words remain.
+   Pure CSS — <TypingTest> marks itself with data-test-status and :has() does the rest.
+   Hovering (or keyboard-focusing) a faded element brings it back. */
+.focus-fade {
+  transition: opacity 0.3s ease;
+}
+body:has([data-test-status="running"]) .focus-fade:not(:hover, :focus-within) {
+  opacity: 0;
+}

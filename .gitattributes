@@ -1,0 +1,10 @@
+# Normalize text files to LF in the repo.
+* text=auto
+
+# Windows launchers must keep CRLF line endings: cmd.exe can misread labels in LF batch files.
+*.cmd text eol=crlf
+*.vbs text eol=crlf
+
+# Binary assets
+*.ico binary
+*.png binary

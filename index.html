@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="embertype: typing practice with live WPM, accuracy and a per-second performance chart." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>embertype</title>
+    <!--
+      Apply the saved theme before the first paint. Without this, the page would flash the
+      default theme until React mounts and reads localStorage. (An unknown value is harmless:
+      no [data-theme] rule matches it, so the :root defaults apply.)
+    -->
+    <script>
+      try {
+        var theme = JSON.parse(localStorage.getItem('embertype:settings') || '{}').theme
+        if (theme) document.documentElement.dataset.theme = theme
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
