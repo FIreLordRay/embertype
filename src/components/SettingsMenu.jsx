@@ -1,6 +1,6 @@
 import { Settings } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
 import { DAILY_GOALS } from '../config/modes.js'
+import { usePopover } from '../hooks/usePopover.js'
 import { useSettings } from '../state/settings.js'
 
 const SWITCHES = [
@@ -15,35 +15,17 @@ const SWITCHES = [
  */
 export default function SettingsMenu() {
   const settings = useSettings()
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef(null)
-  const panelId = useId()
-
-  // Close on a click outside, or on Escape.
-  useEffect(() => {
-    if (!open) return
-    const onPointerDown = (e) => {
-      if (!rootRef.current.contains(e.target)) setOpen(false)
-    }
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [open])
+  const { open, toggle, rootRef, buttonRef, panelId } = usePopover()
 
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={buttonRef}
         type="button"
         aria-label="settings"
         aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => setOpen((o) => !o)}
+        aria-controls={open ? panelId : undefined}
+        onClick={toggle}
         onMouseDown={(e) => e.preventDefault()} // keep focus on the page so typing still works
         className="flex items-center rounded-lg px-2.5 py-1.5 text-sub transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-main"
       >
@@ -53,6 +35,7 @@ export default function SettingsMenu() {
       {open && (
         <div
           id={panelId}
+          role="group"
           aria-label="Settings"
           className="absolute right-0 top-full z-20 mt-2 flex w-72 flex-col gap-1 rounded-xl border border-line bg-surface p-2 text-sm shadow-2xl"
         >

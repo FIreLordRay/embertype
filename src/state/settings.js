@@ -44,18 +44,56 @@ export function sanitizeSettings(saved) {
   return settings
 }
 
-export function loadSettings() {
-  try {
-    return sanitizeSettings(JSON.parse(localStorage.getItem(STORAGE_KEY)))
-  } catch {
-    return { ...DEFAULT_SETTINGS } // storage blocked, or corrupt JSON
-  }
-}
+/**
+ * The settings as a small external store, for useSyncExternalStore.
+ *
+ * A change is saved the moment it's made. Opening the app, or another tab saving, only reads:
+ * if loading wrote back too, two open tabs (even two versions of the app) could keep
+ * overwriting each other.
+ *
+ * @param {() => Storage} getStorage  a function, because merely touching localStorage can throw
+ */
+export function createSettingsStore(getStorage) {
+  const listeners = new Set()
+  let settings = read()
 
-export function saveSettings(settings) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-  } catch {
-    // Private browsing or storage full: settings just won't survive a reload.
+  function read() {
+    try {
+      return sanitizeSettings(JSON.parse(getStorage().getItem(STORAGE_KEY)))
+    } catch {
+      return { ...DEFAULT_SETTINGS } // storage blocked, or corrupt JSON
+    }
+  }
+
+  function emit(next) {
+    if (JSON.stringify(next) === JSON.stringify(settings)) return
+    settings = next
+    for (const listener of listeners) listener()
+  }
+
+  return {
+    /** @param {() => void} listener */
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+
+    getSnapshot: () => settings,
+
+    /** @param {Partial<import('../config/modes.js').Settings>} patch */
+    update(patch) {
+      const next = sanitizeSettings({ ...settings, ...patch })
+      try {
+        getStorage().setItem(STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        // Private browsing or storage full: the change lasts until the tab closes.
+      }
+      emit(next)
+    },
+
+    /** Another tab changed a setting: follow it. */
+    reload() {
+      emit(read())
+    },
   }
 }

@@ -21,6 +21,10 @@ const DRILLABLE = /^[a-z ]$/
  * decides what needs work, so a key only leaves the list when your regular tests show you've
  * improved on it. Capitals and symbols from quotes are skipped: drill words can't contain them.
  *
+ * Known limit: a key needs 20 attempts before it's judged (see keyStats), and the common
+ * English words in regular tests almost never use q, x or z, so drills never pick those.
+ * They're rare in real typing too; lessons 10, 13 and 14 drill them.
+ *
  * @param {import('./history.js').TestResult[]} results
  * @returns {{ char: string, attempts: number, misses: number, rate: number }[]} worst first
  */

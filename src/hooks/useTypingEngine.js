@@ -23,7 +23,7 @@ export function useTypingEngine({ words, timeLimitMs, onRestart }) {
 
       const action = keyToAction(e, status)
       if (!action) return
-      e.preventDefault() // no page scroll on Space, no Firefox quick-find on ' and /
+      e.preventDefault() // while typing: no page scroll on Space, no Firefox quick-find on ' and /
 
       if (action === 'restart') {
         onRestart()
@@ -34,7 +34,7 @@ export function useTypingEngine({ words, timeLimitMs, onRestart }) {
       const focused = document.activeElement
       if (focused instanceof HTMLElement && focused.closest('button, a[href]')) focused.blur()
 
-      dispatch({ ...action, at: performance.now() })
+      dispatch({ ...action, at: keyTime(e) })
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -44,6 +44,16 @@ export function useTypingEngine({ words, timeLimitMs, onRestart }) {
   const timeUp = useCallback(() => dispatch({ type: 'timeUp' }), [])
 
   return { state, timeUp, capsLock }
+}
+
+/**
+ * When the key was pressed. A slow frame can delay this handler, so the event's own
+ * timestamp (same clock as performance.now()) is more accurate than reading the clock here.
+ * Anything implausible falls back to the clock.
+ */
+function keyTime(e) {
+  const now = performance.now()
+  return Number.isFinite(e.timeStamp) && e.timeStamp > 0 && e.timeStamp <= now ? e.timeStamp : now
 }
 
 function initTest({ words, timeLimitMs }) {

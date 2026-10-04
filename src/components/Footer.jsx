@@ -12,7 +12,7 @@ export default function Footer() {
           <Kbd>tab</Kbd> restart
         </li>
         <li>
-          <Kbd>ctrl</Kbd> + <Kbd>backspace</Kbd> delete word
+          <Kbd>ctrl</Kbd> (<Kbd>⌥</Kbd> on Mac) + <Kbd>backspace</Kbd> delete word
         </li>
         <li>
           <Kbd>enter</Kbd> next test (on results)

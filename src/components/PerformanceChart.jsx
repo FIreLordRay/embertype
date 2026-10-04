@@ -36,15 +36,17 @@ export default function PerformanceChart({ data }) {
 
       <LineChart
         responsive
+        accessibilityLayer={false}
         data={data}
         syncId="results"
-        margin={{ top: 8, right: 12, bottom: 0, left: 0 }}
+        margin={{ top: 8, right: 12, bottom: 8, left: 0 }}
         style={{ width: '100%', height: 180 }}
       >
         <CartesianGrid vertical={false} stroke="var(--line)" />
         <XAxis dataKey="second" type="number" domain={xDomain} ticks={xTicks} hide />
         <YAxis
           width={Y_AXIS_WIDTH}
+          interval={0}
           tick={TICK}
           tickLine={false}
           axisLine={false}
@@ -58,10 +60,12 @@ export default function PerformanceChart({ data }) {
 
       <BarChart
         responsive
+        accessibilityLayer={false}
         data={data}
         syncId="results"
-        margin={{ top: 4, right: 12, bottom: 0, left: 0 }}
-        style={{ width: '100%', height: 64 }}
+        // Room above, so its top label sits clear of the wpm chart's 0 just above it.
+        margin={{ top: 12, right: 12, bottom: 0, left: 0 }}
+        style={{ width: '100%', height: 76 }}
       >
         <XAxis
           dataKey="second"
@@ -75,6 +79,7 @@ export default function PerformanceChart({ data }) {
         />
         <YAxis
           width={Y_AXIS_WIDTH}
+          interval={0}
           tick={TICK}
           tickLine={false}
           axisLine={false}
@@ -89,7 +94,9 @@ export default function PerformanceChart({ data }) {
 
       {/* The same numbers as a table: readable without hovering, and by screen readers. */}
       <details className="mt-1 text-xs text-sub" style={{ paddingLeft: Y_AXIS_WIDTH }}>
-        <summary className="w-fit cursor-pointer select-none transition-colors hover:text-fg">per-second data</summary>
+        <summary className="w-fit cursor-pointer select-none rounded transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-main">
+          per-second data
+        </summary>
         <div className="mt-2 max-h-48 max-w-xs overflow-y-auto">
           <table className="w-full tabular-nums">
             <thead>

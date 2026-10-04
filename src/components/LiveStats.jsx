@@ -16,19 +16,20 @@ export default function LiveStats({ mode, status, remainingMs, target, typed, to
 
   return (
     <div className="flex h-10 items-end justify-between gap-4">
-      <span
-        className={`text-[1.75rem] leading-none transition-colors ${status === 'running' ? 'text-main' : 'text-sub'}`}
-        aria-label={mode === 'time' ? `${counter} seconds left` : `${counter} words typed`}
-      >
+      <span className={`text-[1.75rem] leading-none transition-colors ${status === 'running' ? 'text-main' : 'text-sub'}`}>
         {counter}
+        <span className="sr-only">{mode === 'time' ? ' seconds left' : ' words typed'}</span>
       </span>
 
-      {capsLock && (
-        <span role="status" className="flex items-center gap-1.5 rounded-md bg-main px-2.5 py-1 text-sm text-bg">
-          <ArrowBigUp size={16} aria-hidden="true" />
-          caps lock is on
-        </span>
-      )}
+      {/* Always on the page (empty when off), so screen readers announce the warning appearing. */}
+      <span role="status">
+        {capsLock && (
+          <span className="flex items-center gap-1.5 rounded-md bg-main px-2.5 py-1 text-sm text-bg">
+            <ArrowBigUp size={16} aria-hidden="true" />
+            caps lock is on
+          </span>
+        )}
+      </span>
 
       <span
         className={`flex items-center gap-3 text-sm text-sub transition-opacity duration-300 ${showRates ? 'opacity-100' : 'opacity-0'}`}

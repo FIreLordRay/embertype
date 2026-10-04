@@ -24,15 +24,18 @@ const LABELS = {
 
 /**
  * A US keyboard drawn to scale and sized to fit its container (it uses container query units,
- * so it shrinks with the space it's given rather than the window).
+ * so it shrinks with the space it's given rather than the window). Each key is a 3D keycap
+ * (.keycap in index.css).
  *
  * The caller decides how each key looks: `keyProps(id)` returns { className, style, title,
- * labelClassName }. labelClassName styles the letter itself, e.g. to put it on a solid chip
- * so it stays readable on any key colour. Ids are the characters from ROWS (lowercase),
- * ' ' for space, and 'shift-left', 'shift-right', 'tab', 'caps', 'enter', 'backspace'.
+ * labelClassName, tap }. labelClassName styles the letter itself, e.g. to put it on a solid
+ * chip so it stays readable on any key colour. `tap` plays the keycap's press once: pass a
+ * number, and a different number to press it again. Ids are the characters from ROWS
+ * (lowercase), ' ' for space, and 'shift-left', 'shift-right', 'tab', 'caps', 'enter',
+ * 'backspace'.
  *
  * @param {{ keyProps: (id: string) => { className?: string, style?: object, title?: string,
- *           labelClassName?: string }, className?: string }} props
+ *           labelClassName?: string, tap?: number }, className?: string }} props
  */
 export default function Keyboard({ keyProps, className = '' }) {
   return (
@@ -42,14 +45,16 @@ export default function Keyboard({ keyProps, className = '' }) {
           <div key={r} className="flex" style={{ gap: 'var(--gap)' }}>
             {row.map(([id, width]) => {
               if (id.startsWith('gap')) return <div key={id} style={{ width: `calc(var(--u) * ${width} - var(--gap))` }} />
-              const { className: keyClass = '', style, title, labelClassName = '' } = keyProps(id)
+              const { className: keyClass = '', style, title, labelClassName = '', tap } = keyProps(id)
               const label = Object.hasOwn(LABELS, id) ? LABELS[id] : id.toUpperCase()
               return (
                 <div
-                  key={id}
+                  // A new key for each tap: the fresh element plays the press animation from the start.
+                  key={tap === undefined ? id : `${id}:${tap}`}
                   title={title}
-                  className={`relative flex items-center justify-center rounded-[calc(var(--u)*0.14)] font-typing leading-none transition-colors duration-150 ${keyClass}`}
+                  className={`keycap flex items-center justify-center font-typing leading-none ${tap === undefined ? '' : 'keycap-tap'} ${keyClass}`}
                   style={{
+                    '--k': 'calc(var(--u) - var(--gap))',
                     width: `calc(var(--u) * ${width} - var(--gap))`,
                     height: 'calc(var(--u) - var(--gap))',
                     fontSize: `calc(var(--u) * ${width > 1 && id !== ' ' ? 0.26 : 0.36})`,
@@ -59,7 +64,7 @@ export default function Keyboard({ keyProps, className = '' }) {
                   {label && <span className={labelClassName}>{label}</span>}
                   {/* The bumps on F and J that let you find the home row without looking. */}
                   {(id === 'f' || id === 'j') && (
-                    <span aria-hidden="true" className="absolute bottom-[14%] h-[6%] w-[28%] rounded-full bg-current opacity-60" />
+                    <span aria-hidden="true" className="absolute bottom-[27%] h-[6%] w-[24%] rounded-full bg-current opacity-60" />
                   )}
                 </div>
               )

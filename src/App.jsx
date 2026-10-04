@@ -1,9 +1,11 @@
 import { lazy, Suspense, useCallback, useState } from 'react'
 import { EXTRAS_MODES, modeAmount } from './config/modes.js'
+import Announcer from './components/Announcer.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Footer from './components/Footer.jsx'
 import ModeBar from './components/ModeBar.jsx'
 import NavBar from './components/NavBar.jsx'
+import StorageNotice from './components/StorageNotice.jsx'
 import TypingTest from './components/TypingTest.jsx'
 import { useHashRoute } from './hooks/useHashRoute.js'
 import { HistoryProvider } from './state/HistoryProvider.jsx'
@@ -35,14 +37,18 @@ function Layout() {
   // Bumping this remounts <TypingTest>: a brand-new test with completely fresh state.
   const [testNumber, setTestNumber] = useState(0)
   const restart = useCallback(() => setTestNumber((n) => n + 1), [])
+  // Ties a test to everything that decides its words: change any of them → new test.
+  const testKey = `${mode}-${amount}-${Boolean(extras.punctuation)}-${Boolean(extras.numbers)}-${testNumber}`
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-8 px-4 py-6 sm:px-8 sm:py-8">
       <NavBar route={route} />
+      <StorageNotice />
       {route === 'type' && <ModeBar className="focus-fade" />}
       <main className="flex flex-1 flex-col justify-center pb-10">
-        {/* Keyed by route, so navigating to another page clears an error shown here. */}
-        <ErrorBoundary key={route}>
+        {/* Keyed by page, and by test on the typing page: going elsewhere, or starting a new
+            test (the mode bar stays usable), clears an error shown here. */}
+        <ErrorBoundary key={route === 'type' ? testKey : route}>
           {route === 'stats' && (
             <Suspense fallback={null}>
               <StatsPage />
@@ -53,19 +59,11 @@ function Layout() {
               <LessonsPage />
             </Suspense>
           )}
-          {route === 'type' && (
-            // The key ties a test to everything that decides its words: change any of them → new test.
-            <TypingTest
-              key={`${mode}-${amount}-${Boolean(extras.punctuation)}-${Boolean(extras.numbers)}-${testNumber}`}
-              mode={mode}
-              amount={amount}
-              extras={extras}
-              onRestart={restart}
-            />
-          )}
+          {route === 'type' && <TypingTest key={testKey} mode={mode} amount={amount} extras={extras} onRestart={restart} />}
         </ErrorBoundary>
       </main>
       <Footer />
+      <Announcer />
     </div>
   )
 }

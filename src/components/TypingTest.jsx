@@ -51,7 +51,9 @@ export default function TypingTest({ mode, amount, extras, onRestart }) {
     pace && status === 'running' ? Math.min(target.length - 1, Math.floor((pace * 5 * elapsedMs) / 60_000)) : null
 
   useEffect(() => {
-    if (status === 'running') loadResults() // fetched once; later calls reuse the same module
+    // Fetched once; later calls reuse the same module. If it fails (the app was redeployed),
+    // the results screen's own load fails the same way and the error boundary explains.
+    if (status === 'running') loadResults().catch(() => {})
   }, [status])
 
   // A sound for each new keystroke in the log: a click, or a thud for a mistake. The ref
@@ -112,19 +114,25 @@ export default function TypingTest({ mode, amount, extras, onRestart }) {
       <Words target={target} typed={typed} status={status} ghostIndex={ghostIndex} />
       {fingerGuide && (
         <div className="mt-4">
-          <FingerGuide char={target[typed.length]} />
+          <FingerGuide
+            char={target[typed.length]}
+            pressed={lastEvent === undefined ? null : lastEvent.type === 'char' ? lastEvent.actual : 'backspace'}
+            missed={lastEvent?.type === 'char' && lastEvent.actual !== lastEvent.expected}
+            pressId={log.length}
+          />
         </div>
       )}
-      <div className="mt-4 flex justify-center">
+      {/* focus-fade on the wrapper: the keycap has its own transitions for hover and press. */}
+      <div className="focus-fade mt-4 flex justify-center">
         <button
           type="button"
           onClick={onRestart}
           onMouseDown={(e) => e.preventDefault()} // don't take focus: Space should keep typing
           aria-label="Restart test"
           title="Restart (Tab)"
-          className="focus-fade rounded-lg p-3 text-sub transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-main"
+          className="keycap grid size-(--k) place-items-center bg-surface text-sub outline-offset-2 [--k:2.75rem] hover:text-fg focus-visible:outline-2 focus-visible:outline-main"
         >
-          <RotateCcw size={20} aria-hidden="true" />
+          <RotateCcw size={18} aria-hidden="true" />
         </button>
       </div>
     </section>

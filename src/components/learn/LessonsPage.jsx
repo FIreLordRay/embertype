@@ -62,10 +62,10 @@ export default function LessonsPage() {
         <a
           href="#/"
           onClick={() => start(next)}
-          className="flex items-center gap-2 rounded-lg bg-main px-5 py-2.5 text-bg transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-main"
+          className="keycap flex items-center gap-2 bg-main text-bg outline-offset-2 [--k:2.6rem] [--pad-x:1rem] [--pad-y:0.25rem] hover:opacity-90 focus-visible:outline-2 focus-visible:outline-main"
         >
           <GraduationCap size={18} aria-hidden="true" />
-          {passed === 0 ? 'start lesson 1' : `continue: lesson ${next}`}
+          <span>{passed === 0 ? 'start lesson 1' : `continue: lesson ${next}`}</span>
         </a>
       </div>
 

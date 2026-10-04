@@ -10,9 +10,10 @@ import {
   modeKey,
   personalBests,
   summarize,
+  testLabel,
   timeAgo,
 } from '../../lib/history.js'
-import { useHistory } from '../../state/history.js'
+import { MAX_RESULTS, useHistory } from '../../state/history.js'
 import { useSettings } from '../../state/settings.js'
 import Kbd from '../Kbd.jsx'
 import Consistency from './Consistency.jsx'
@@ -69,7 +70,7 @@ export default function StatsPage() {
         </p>
       ) : (
         <>
-          <SummaryTiles summary={summary} now={now} />
+          <SummaryTiles summary={summary} now={now} atLimit={results.length >= MAX_RESULTS} />
           <ProgressChart results={shown} now={now} />
 
           <div className="grid gap-10 md:grid-cols-2">
@@ -137,15 +138,16 @@ function ModeFilter({ options, active, onChange }) {
   )
 }
 
-function SummaryTiles({ summary, now }) {
+/** `atLimit`: the history is full, so older tests are being dropped (see trimHistory). */
+function SummaryTiles({ summary, now, atLimit }) {
   const { tests, totalMs, best, recentWpm, recentAccuracy, previousWpm } = summary
   const trend = previousWpm === null ? null : Math.floor(recentWpm) - Math.floor(previousWpm)
 
   return (
     <dl className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3 lg:grid-cols-5">
-      <Tile label="tests" value={tests} />
+      <Tile label="tests" value={tests} note={atLimit ? 'history full: the oldest drop off, bests stay' : null} />
       <Tile label="time typing" value={formatDuration(totalMs)} />
-      <Tile label="best" value={`${Math.floor(best.wpm)} wpm`} note={`${modeKey(best)} · ${timeAgo(best.date, now)}`} />
+      <Tile label="best" value={`${Math.floor(best.wpm)} wpm`} note={`${testLabel(best)} · ${timeAgo(best.date, now)}`} />
       <Tile
         label="recent average"
         value={`${Math.floor(recentWpm)} wpm`}
@@ -179,31 +181,51 @@ function Tile({ label, value, note }) {
   )
 }
 
-/** Every mode, always: the selected one is highlighted, missing ones show a dash. */
+// Table cells: a gap after every column but the last, so numbers never run together on a phone.
+const TH = 'pb-2 pr-3 font-normal last:pr-0'
+const TD = 'py-2 pr-3 last:pr-0'
+
+/** The variants of a test with extras, written the way testLabel writes them. */
+const EXTRAS = [' + punctuation', ' + numbers', ' + punctuation + numbers']
+
+/**
+ * Every test, always (the selected one highlighted, missing ones with a dash), plus a row
+ * for each variant with punctuation or numbers you've taken: those are different tests.
+ */
 function PersonalBests({ bests, active, now }) {
+  const rows = MODE_KEYS.flatMap((key) => [key, ...EXTRAS.map((extras) => key + extras).filter((label) => bests.has(label))])
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-sm text-sub">personal bests</h3>
       <table className="w-full text-left text-sm tabular-nums">
         <thead className="text-xs text-sub">
           <tr>
-            <th className="pb-2 font-normal">test</th>
-            <th className="pb-2 font-normal">best</th>
-            <th className="pb-2 font-normal">acc</th>
-            <th className="pb-2 font-normal">when</th>
-            <th className="pb-2 text-right font-normal">tests</th>
+            <th className={TH}>test</th>
+            <th className={TH}>best</th>
+            <th className={TH}>acc</th>
+            <th className={TH}>when</th>
+            <th className={`${TH} text-right`}>tests</th>
           </tr>
         </thead>
         <tbody>
-          {MODE_KEYS.map((key) => {
-            const entry = bests.get(key)
+          {rows.map((label) => {
+            const entry = bests.get(label)
+            const [key, ...extras] = label.split(' + ')
             return (
-              <tr key={key} className={`border-t border-line ${key === active ? 'text-main' : 'text-fg'}`}>
-                <td className="py-2">{key}</td>
-                <td className="py-2">{entry ? `${Math.floor(entry.best.wpm)} wpm` : '—'}</td>
-                <td className="py-2">{entry ? `${Math.floor(entry.best.accuracy)}%` : ''}</td>
-                <td className="py-2 text-sub">{entry ? timeAgo(entry.best.date, now) : ''}</td>
-                <td className="py-2 text-right text-sub">{entry?.count ?? 0}</td>
+              <tr key={label} className={`border-t border-line ${key === active ? 'text-main' : 'text-fg'}`}>
+                <td className={TD}>
+                  {key}
+                  {extras.map((extra) => (
+                    <span key={extra} className="text-sub">
+                      {' '}
+                      + {extra}
+                    </span>
+                  ))}
+                </td>
+                <td className={TD}>{entry ? `${Math.floor(entry.best.wpm)} wpm` : '—'}</td>
+                <td className={TD}>{entry ? `${Math.floor(entry.best.accuracy)}%` : ''}</td>
+                <td className={`${TD} text-sub`}>{entry ? timeAgo(entry.best.date, now) : ''}</td>
+                <td className={`${TD} text-right text-sub`}>{entry?.count ?? 0}</td>
               </tr>
             )
           })}
@@ -269,23 +291,24 @@ function TestTable({ results, now }) {
         <table className="w-full text-left text-sm tabular-nums">
           <thead className="text-xs text-sub">
             <tr>
-              <th className="pb-2 font-normal">when</th>
-              <th className="pb-2 font-normal">test</th>
-              <th className="pb-2 text-right font-normal">wpm</th>
-              <th className="pb-2 text-right font-normal">raw</th>
-              <th className="pb-2 text-right font-normal">acc</th>
-              <th className="pb-2 text-right font-normal">errors</th>
+              <th className={TH}>when</th>
+              <th className={TH}>test</th>
+              <th className={`${TH} text-right`}>wpm</th>
+              {/* Raw is the least important column: it makes room on phones. */}
+              <th className={`${TH} hidden text-right sm:table-cell`}>raw</th>
+              <th className={`${TH} text-right`}>acc</th>
+              <th className={`${TH} text-right`}>errors</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-line">
-                <td className="py-2 text-sub">{timeAgo(r.date, now)}</td>
-                <td className="py-2 text-fg">{modeKey(r)}</td>
-                <td className="py-2 text-right text-fg">{Math.floor(r.wpm)}</td>
-                <td className="py-2 text-right text-sub">{Math.floor(r.raw)}</td>
-                <td className="py-2 text-right text-fg">{Math.floor(r.accuracy)}%</td>
-                <td className="py-2 text-right text-sub">{r.errors}</td>
+                <td className={`${TD} text-sub`}>{timeAgo(r.date, now)}</td>
+                <td className={`${TD} text-fg`}>{testLabel(r)}</td>
+                <td className={`${TD} text-right text-fg`}>{Math.floor(r.wpm)}</td>
+                <td className={`${TD} hidden text-right text-sub sm:table-cell`}>{Math.floor(r.raw)}</td>
+                <td className={`${TD} text-right text-fg`}>{Math.floor(r.accuracy)}%</td>
+                <td className={`${TD} text-right text-sub`}>{r.errors}</td>
               </tr>
             ))}
           </tbody>

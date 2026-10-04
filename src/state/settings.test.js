@@ -1,6 +1,58 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '../config/modes.js'
-import { sanitizeSettings } from './settings.js'
+import { createSettingsStore, sanitizeSettings, STORAGE_KEY } from './settings.js'
+
+/** An in-memory localStorage that records every write. */
+function memoryStorage(entries = {}) {
+  const data = new Map(Object.entries(entries))
+  return {
+    data,
+    writes: 0,
+    getItem: (key) => (data.has(key) ? data.get(key) : null),
+    setItem(key, value) {
+      this.writes++
+      data.set(key, String(value))
+    },
+  }
+}
+
+describe('createSettingsStore', () => {
+  it('only reads when the app opens, even settings it had to repair', () => {
+    const storage = memoryStorage({ [STORAGE_KEY]: JSON.stringify({ theme: 'from-a-newer-version', mode: 'words' }) })
+    const store = createSettingsStore(() => storage)
+    expect(store.getSnapshot()).toMatchObject({ theme: DEFAULT_SETTINGS.theme, mode: 'words' })
+    expect(storage.writes).toBe(0)
+  })
+
+  it('saves a change straight away and tells subscribers', () => {
+    const storage = memoryStorage()
+    const store = createSettingsStore(() => storage)
+    const listener = vi.fn()
+    store.subscribe(listener)
+    store.update({ theme: 'vintage' })
+    expect(JSON.parse(storage.data.get(STORAGE_KEY)).theme).toBe('vintage')
+    expect(store.getSnapshot().theme).toBe('vintage')
+    expect(listener).toHaveBeenCalledOnce()
+  })
+
+  it('follows a change made in another tab, without writing it back', () => {
+    const storage = memoryStorage()
+    const store = createSettingsStore(() => storage)
+    storage.data.set(STORAGE_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, mode: 'quote' }))
+    store.reload()
+    expect(store.getSnapshot().mode).toBe('quote')
+    expect(storage.writes).toBe(0)
+  })
+
+  it('still works, for this tab, when storage is blocked', () => {
+    const store = createSettingsStore(() => {
+      throw new DOMException('denied', 'SecurityError')
+    })
+    expect(store.getSnapshot()).toEqual(DEFAULT_SETTINGS)
+    store.update({ sound: true })
+    expect(store.getSnapshot().sound).toBe(true)
+  })
+})
 
 describe('sanitizeSettings', () => {
   it('keeps every supported value', () => {

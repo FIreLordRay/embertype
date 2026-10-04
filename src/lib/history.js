@@ -5,8 +5,10 @@
  * page shows is computed from it here, so all of it can be unit-tested without a browser.
  */
 import { MODES, TRAINING_MODES } from '../config/modes.js'
+import { lessonPassed } from './lessons.js'
 import { CHARS_PER_WORD, computeStats } from './metrics.js'
 import { keyFor } from './qwerty.js'
+import { dayKey } from './streak.js'
 
 /**
  * One finished test, as saved.
@@ -23,7 +25,8 @@ import { keyFor } from './qwerty.js'
  * @property {number} errors
  * @property {number} ms            how long the test took
  * @property {Record<string, [number, number]>} keys
- *   per expected character: [attempts, misses], e.g. { e: [42, 3] }
+ *   per expected character: [attempts, misses], e.g. { e: [42, 3] }. Empty for older tests:
+ *   only the newest ones keep these counts (see compactHistory).
  * @property {boolean} [punctuation]  time/words tests typed with punctuation mixed in
  * @property {boolean} [numbers]      …and with numbers mixed in
  * @property {string[]} [targets]   practice drills only: the keys the drill focused on
@@ -49,6 +52,17 @@ export const modeKey = (result) => `${result.mode} ${result.amount}`
 
 /** Same punctuation and numbers settings? Only then are two speeds fair to compare. */
 export const sameExtras = (a, b) => Boolean(a.punctuation) === Boolean(b.punctuation) && Boolean(a.numbers) === Boolean(b.numbers)
+
+/** 'punctuation', 'numbers', 'punctuation and numbers', or '' when both are off. */
+export const extrasLabel = (extras) =>
+  [extras.punctuation && 'punctuation', extras.numbers && 'numbers'].filter(Boolean).join(' and ')
+
+/**
+ * Which test it was, extras included: 'time 30', 'words 25 + punctuation',
+ * 'time 60 + punctuation + numbers'. Results with the same label are fair to compare.
+ */
+export const testLabel = (result) =>
+  [modeKey(result), result.punctuation && 'punctuation', result.numbers && 'numbers'].filter(Boolean).join(' + ')
 
 /**
  * Attempts and misses for every key in a test's input log.
@@ -109,24 +123,75 @@ export function filterByMode(results, key) {
 }
 
 /**
- * Combine imported results with the ones already saved: matched by id (so importing the same
- * file twice changes nothing), oldest first, newest `max` kept.
+ * Combine two lists of results, matched by id (so importing the same file twice changes
+ * nothing), oldest first.
  *
  * @param {TestResult[]} existing
  * @param {TestResult[]} incoming
- * @param {number} max
- * @returns {{ results: TestResult[], added: number }}
+ * @returns {TestResult[]}
  */
-export function mergeResults(existing, incoming, max) {
+export function mergeResults(existing, incoming) {
   const byId = new Map(existing.map((result) => [result.id, result]))
-  let added = 0
   for (const result of incoming) {
-    if (byId.has(result.id)) continue
-    byId.set(result.id, result)
-    added++
+    if (!byId.has(result.id)) byId.set(result.id, result)
   }
-  const results = [...byId.values()].sort((a, b) => a.date - b.date).slice(-max)
-  return { results, added }
+  return [...byId.values()].sort((a, b) => a.date - b.date)
+}
+
+/**
+ * Cut a history down to `max` tests. The oldest go first, except the tests that hold
+ * something you'd miss:
+ *  - your best in every test (extras included) and in every lesson
+ *  - the first pass of every lesson (the course is worked out from results)
+ *  - the last test of every day you practiced (so streaks never shrink)
+ * Only if those alone come to more than `max` do the oldest of them go too.
+ *
+ * @param {TestResult[]} results oldest first
+ * @param {number} max
+ * @returns {TestResult[]}
+ */
+export function trimHistory(results, max) {
+  if (results.length <= max) return results
+  const keep = keptIds(results)
+  const trimmed = []
+  let excess = results.length - max
+  for (const result of results) {
+    if (excess > 0 && !keep.has(result.id)) excess--
+    else trimmed.push(result)
+  }
+  return trimmed.slice(-max) // only cuts anything if the kept tests alone are over max
+}
+
+/** The ids trimHistory never drops (see there). */
+function keptIds(results) {
+  const bests = new Map() // test label → best result
+  const firstPasses = new Map() // lesson number → first passing result
+  const lastOfDay = new Map() // day → that day's last result
+  for (const result of results) {
+    if (!isPractice(result)) {
+      const label = testLabel(result) // 'time 30 + punctuation', 'lesson 4', …
+      const best = bests.get(label)
+      if (!best || result.wpm > best.wpm) bests.set(label, result)
+    }
+    if (result.mode === 'lesson' && lessonPassed(result) && !firstPasses.has(result.amount)) {
+      firstPasses.set(result.amount, result)
+    }
+    lastOfDay.set(dayKey(result.date), result)
+  }
+  return new Set([...bests.values(), ...firstPasses.values(), ...lastOfDay.values()].map((result) => result.id))
+}
+
+/**
+ * Drop the per-key counts from all but the newest `detailed` tests. They're most of a saved
+ * test's size, and the heatmap and drills should reflect how you type now anyway.
+ *
+ * @param {TestResult[]} results oldest first
+ * @param {number} detailed
+ * @returns {TestResult[]}
+ */
+export function compactHistory(results, detailed) {
+  const cutoff = results.length - detailed
+  return results.map((result, i) => (i < cutoff && Object.keys(result.keys).length > 0 ? { ...result, keys: {} } : result))
 }
 
 /**
@@ -150,8 +215,10 @@ export function summarize(results, window = 10) {
 }
 
 /**
- * Best result for each mode, plus how many tests you've done in it. On a tie the earlier
- * result keeps the title: it got there first.
+ * Best result for each test, plus how many times you've taken it. Punctuation and numbers
+ * make it a different test (a run with punctuation shouldn't have to beat a plain one), so
+ * each combination has its own entry, keyed by testLabel: 'time 30', 'time 30 + punctuation', …
+ * On a tie the earlier result keeps the title: it got there first.
  *
  * @param {TestResult[]} results
  * @returns {Map<string, { best: TestResult, count: number }>}
@@ -159,7 +226,7 @@ export function summarize(results, window = 10) {
 export function personalBests(results) {
   const bests = new Map()
   for (const result of results) {
-    const key = modeKey(result)
+    const key = testLabel(result)
     const entry = bests.get(key)
     if (!entry) bests.set(key, { best: result, count: 1 })
     else bests.set(key, { best: result.wpm > entry.best.wpm ? result : entry.best, count: entry.count + 1 })

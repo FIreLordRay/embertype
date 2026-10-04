@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  compactHistory,
   createResult,
+  extrasLabel,
   filterByMode,
   formatDuration,
   keyStats,
@@ -11,7 +13,9 @@ import {
   personalBests,
   previousBest,
   summarize,
+  testLabel,
   timeAgo,
+  trimHistory,
 } from './history.js'
 import { createInitialState } from './typingEngine.js'
 import { keys, play } from './testing.js'
@@ -99,6 +103,17 @@ describe('personalBests / previousBest', () => {
     expect(bests.get('time 30')).toMatchObject({ best: { id: 'b' }, count: 3 })
     expect(bests.get('words 25')).toMatchObject({ best: { id: 'd' }, count: 1 })
     expect(bests.has('time 60')).toBe(false)
+  })
+
+  it('keeps separate bests for punctuation and numbers', () => {
+    const bests = personalBests([
+      result({ id: 'plain', wpm: 70 }),
+      result({ id: 'punct', wpm: 90, punctuation: true }),
+      result({ id: 'both', wpm: 50, punctuation: true, numbers: true }),
+    ])
+    expect(bests.get('time 30')).toMatchObject({ best: { id: 'plain' }, count: 1 }) // not beaten by 'punct'
+    expect(bests.get('time 30 + punctuation')).toMatchObject({ best: { id: 'punct' } })
+    expect(bests.get('time 30 + punctuation + numbers')).toMatchObject({ best: { id: 'both' } })
   })
 
   it('finds the best before a given test, ignoring the test itself', () => {
@@ -209,17 +224,64 @@ describe('keyTotalsByKey', () => {
   })
 })
 
+describe('testLabel / extrasLabel', () => {
+  it('names the test with its extras', () => {
+    expect(testLabel(result())).toBe('time 30')
+    expect(testLabel(result({ mode: 'words', amount: 25, punctuation: true }))).toBe('words 25 + punctuation')
+    expect(testLabel(result({ punctuation: true, numbers: true }))).toBe('time 30 + punctuation + numbers')
+    expect(extrasLabel({ punctuation: true, numbers: true })).toBe('punctuation and numbers')
+    expect(extrasLabel({})).toBe('')
+  })
+})
+
 describe('mergeResults', () => {
-  it('adds only new results, oldest first, and caps the total', () => {
+  it('adds only new results, oldest first', () => {
     const existing = [result({ id: 'a', date: 1 }), result({ id: 'b', date: 3 })]
     const incoming = [result({ id: 'b', date: 3 }), result({ id: 'c', date: 2 }), result({ id: 'd', date: 4 })]
-    const { results, added } = mergeResults(existing, incoming, 3)
-    expect(added).toBe(2)
-    expect(results.map((r) => r.id)).toEqual(['c', 'b', 'd']) // 'a' (oldest) dropped by the cap
+    expect(mergeResults(existing, incoming).map((r) => r.id)).toEqual(['a', 'c', 'b', 'd'])
   })
 
   it('changes nothing when the same file is imported twice', () => {
     const existing = [result({ id: 'a', date: 1 })]
-    expect(mergeResults(existing, existing, 10)).toEqual({ results: existing, added: 0 })
+    expect(mergeResults(existing, existing)).toEqual(existing)
+  })
+})
+
+describe('trimHistory', () => {
+  const DAY = 86_400_000
+  const noon = new Date(2026, 0, 1, 12).getTime()
+
+  it('leaves a history under the limit alone', () => {
+    const history = [result({ id: 'a' }), result({ id: 'b' })]
+    expect(trimHistory(history, 5)).toBe(history)
+  })
+
+  it('drops the oldest tests first, but never a best, a lesson pass or the last test of a day', () => {
+    const history = [
+      result({ id: 'best', date: noon, wpm: 99 }), // best time 30: kept
+      result({ id: 'punct-best', date: noon + 1, wpm: 40, punctuation: true }), // best with punctuation: kept
+      result({ id: 'pass', date: noon + 2, mode: 'lesson', amount: 3, wpm: 20, accuracy: 97 }), // first pass, lesson best: kept
+      result({ id: 'old-1', date: noon + 3 }),
+      result({ id: 'old-2', date: noon + 4 }),
+      result({ id: 'day-1', date: noon + 5 }), // last test on 1 Jan: kept
+      result({ id: 'new-1', date: noon + DAY }),
+      result({ id: 'new-2', date: noon + DAY + 1 }), // last test on 2 Jan: kept
+    ]
+    expect(trimHistory(history, 6).map((r) => r.id)).toEqual(['best', 'punct-best', 'pass', 'day-1', 'new-1', 'new-2'])
+  })
+
+  it('cuts even kept tests, oldest first, when they alone are over the limit', () => {
+    const days = Array.from({ length: 5 }, (_, i) => result({ id: `day-${i}`, date: noon + i * DAY }))
+    expect(trimHistory(days, 3).map((r) => r.id)).toEqual(['day-2', 'day-3', 'day-4'])
+  })
+})
+
+describe('compactHistory', () => {
+  it('keeps per-key counts only on the newest tests', () => {
+    const history = [result({ id: 'a', keys: { e: [5, 1] } }), result({ id: 'b', keys: { e: [6, 0] } }), result({ id: 'c', keys: { e: [7, 2] } })]
+    const compact = compactHistory(history, 2)
+    expect(compact.map((r) => r.keys)).toEqual([{}, { e: [6, 0] }, { e: [7, 2] }])
+    expect(compact[2]).toBe(history[2]) // untouched tests are the same objects
+    expect(history[0].keys).toEqual({ e: [5, 1] }) // the input isn't changed
   })
 })

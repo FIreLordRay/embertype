@@ -30,9 +30,21 @@ describe('currentStreak', () => {
     expect(currentStreak(new Map(), now)).toBe(0)
   })
 
-  it('survives a daylight-saving change (US clocks go back on 1 Nov 2026)', () => {
-    const totals = dailyTotals([at(2026, 10, 31), at(2026, 11, 1), at(2026, 11, 2)])
-    expect(currentStreak(totals, new Date(2026, 10, 2, 20).getTime())).toBe(3)
+  // These run in America/Chicago (see vite.config.js). Stepping back 24 hours at a time, not
+  // one calendar day, fails both: it skips the 23-hour day and counts the 25-hour day twice.
+  it('runs in a time zone with daylight saving', () => {
+    expect(new Date(2026, 2, 7, 12).getTimezoneOffset()).toBe(360) // CST
+    expect(new Date(2026, 2, 9, 12).getTimezoneOffset()).toBe(300) // CDT
+  })
+
+  it("doesn't skip the day clocks go forward (8 Mar 2026 has 23 hours)", () => {
+    const totals = dailyTotals([at(2026, 3, 7), at(2026, 3, 8), at(2026, 3, 9, 0)])
+    expect(currentStreak(totals, new Date(2026, 2, 9, 0, 30).getTime())).toBe(3)
+  })
+
+  it("doesn't count the day clocks go back twice (1 Nov 2026 has 25 hours)", () => {
+    const totals = dailyTotals([at(2026, 10, 31), at(2026, 11, 1)])
+    expect(currentStreak(totals, new Date(2026, 10, 1, 23, 30).getTime())).toBe(2)
   })
 })
 
@@ -58,6 +70,12 @@ describe('calendarWeeks', () => {
     expect(last[6]).toMatchObject({ key: '2026-10-03', ms: 300_000, tests: 1 }) // Saturday
     const sunday = new Date(2026, 9, 4).getTime()
     expect(weeks.flat().every((day) => day === null || day.date < sunday)).toBe(true)
+  })
+
+  it('has every day exactly once across a daylight-saving change', () => {
+    const keys = calendarWeeks(new Map(), new Date(2026, 10, 20, 12).getTime(), 8).flat().filter(Boolean).map((day) => day.key)
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys).toContain('2026-11-01')
   })
 
   it('marks future days as empty', () => {

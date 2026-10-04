@@ -44,6 +44,16 @@ describe('decorateWords', () => {
     expect(text).not.toMatch(/ {2}/)
   })
 
+  it('keeps the word count, dashes included, so "words 25" is still 25', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const words = plain.slice(seed, seed + 25)
+      const out = decorateWords(words, { punctuation: true, numbers: true }, seeded(seed))
+      expect(out).toHaveLength(25)
+      expect(out[0]).not.toBe('-')
+      expect(out.at(-1)).toMatch(/[.?!]$/)
+    }
+  })
+
   it('is repeatable with a seeded rng', () => {
     const a = decorateWords(plain.slice(0, 50), { punctuation: true, numbers: true }, seeded(5))
     const b = decorateWords(plain.slice(0, 50), { punctuation: true, numbers: true }, seeded(5))

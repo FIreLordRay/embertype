@@ -1,10 +1,11 @@
 import { ChartLine, CircleCheck, Flame, Minus, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { LESSONS, PASS_ACCURACY, PASS_WPM } from '../config/lessons.js'
 import { TRAINING_MODES } from '../config/modes.js'
-import { countKeys, MIN_CORRECT_CHARS, previousBest } from '../lib/history.js'
+import { countKeys, extrasLabel as describeExtras, MIN_CORRECT_CHARS, previousBest } from '../lib/history.js'
 import { lessonPassed } from '../lib/lessons.js'
 import { buildTimeline, computeStats, missedKeys } from '../lib/metrics.js'
+import { announce } from '../state/announcer.js'
 import { useHistory } from '../state/history.js'
 import { useSettings } from '../state/settings.js'
 import Kbd from './Kbd.jsx'
@@ -28,7 +29,7 @@ export default function ResultsDashboard({ state, mode, amount, setup, onRestart
   const elapsedMs = endedAt - startedAt
   const testName = `${mode} ${amount}`
   const isTraining = TRAINING_MODES.includes(mode)
-  const extrasLabel = [extras.punctuation && 'punctuation', extras.numbers && 'numbers'].filter(Boolean).join(' and ')
+  const extrasLabel = describeExtras(extras)
 
   const stats = useMemo(() => computeStats({ target, typed, log, elapsedMs }), [target, typed, log, elapsedMs])
   const timeline = useMemo(() => buildTimeline({ target, log, elapsedMs }), [target, log, elapsedMs])
@@ -41,6 +42,21 @@ export default function ResultsDashboard({ state, mode, amount, setup, onRestart
   const saved = stats.correctChars >= MIN_CORRECT_CHARS
   // Floored like every displayed number: 87.4 → 87.9 doesn't read as a new best.
   const gain = best === null ? 0 : Math.floor(stats.wpm) - Math.floor(best)
+  const newBest = saved && gain > 0 && !isTraining
+  const passed = saved && lessonPassed(stats)
+
+  // Tell screen-reader users the test is over, and how it went: nothing else moves when it ends.
+  const announcement = [
+    `Test complete: ${Math.floor(stats.wpm)} wpm, ${Math.floor(stats.accuracy)}% accuracy.`,
+    mode === 'lesson' && (passed ? `Lesson ${amount} passed.` : 'Lesson not passed yet.'),
+    newBest && `New personal best, ${gain} wpm faster.`,
+    !saved && 'Too short to save to your stats.',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  useEffect(() => {
+    announce(announcement)
+  }, [announcement])
 
   return (
     <section aria-labelledby="results-heading" className="flex animate-fade-in flex-col gap-8 motion-reduce:animate-none">
@@ -48,21 +64,17 @@ export default function ResultsDashboard({ state, mode, amount, setup, onRestart
         Results
       </h2>
 
-      {mode === 'lesson' && <LessonOutcome lesson={amount} stats={stats} saved={saved} />}
+      {mode === 'lesson' && <LessonOutcome lesson={amount} stats={stats} passed={passed} />}
 
       {/* No personal bests for training: drill and lesson words aren't comparable. */}
-      {saved && gain > 0 && !isTraining && (
-        <p role="status" className="flex items-center gap-2 text-main">
+      {newBest && (
+        <p className="flex items-center gap-2 text-main">
           <Flame size={18} aria-hidden="true" />
           new personal best for {testName}
           {extrasLabel && ` with ${extrasLabel}`}: +{gain} wpm
         </p>
       )}
-      {!saved && (
-        <p role="status" className="text-sm text-sub">
-          Too short to save to your stats: type at least one full word.
-        </p>
-      )}
+      {!saved && <p className="text-sm text-sub">Too short to save to your stats: type at least one full word.</p>}
 
       <div className="grid items-center gap-6 md:grid-cols-[auto_minmax(0,1fr)] md:gap-10">
         <div className="flex gap-10 md:flex-col md:gap-5">
@@ -90,10 +102,10 @@ export default function ResultsDashboard({ state, mode, amount, setup, onRestart
           <button
             type="button"
             onClick={onRestart}
-            className="flex items-center gap-2 rounded-lg bg-surface px-5 py-2.5 text-fg transition-colors hover:bg-main hover:text-bg focus-visible:outline-2 focus-visible:outline-main"
+            className="keycap flex items-center gap-2 bg-surface text-fg outline-offset-2 [--k:2.6rem] [--pad-x:1rem] [--pad-y:0.25rem] hover:bg-main hover:text-bg focus-visible:outline-2 focus-visible:outline-main"
           >
             <RotateCcw size={18} aria-hidden="true" />
-            {{ practice: 'next drill', lesson: 'try again' }[mode] ?? 'next test'}
+            <span>{{ practice: 'next drill', lesson: 'try again' }[mode] ?? 'next test'}</span>
           </button>
           <a
             href="#/stats"
@@ -123,13 +135,13 @@ function testNote(mode, amount, quote, extrasLabel) {
  * Passed or not yet. A pass offers the next lesson; a miss says exactly what was short.
  * Accuracy comes first in the course: speed built on mistakes is hard to unlearn.
  */
-function LessonOutcome({ lesson, stats, saved }) {
+function LessonOutcome({ lesson, stats, passed }) {
   const { update } = useSettings()
   const next = LESSONS[lesson] // lessons are numbered from 1, so this is the following one
 
-  if (saved && lessonPassed(stats)) {
+  if (passed) {
     return (
-      <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span className="flex items-center gap-2 text-correct">
           <CircleCheck size={18} aria-hidden="true" />
           lesson {lesson} passed
@@ -151,7 +163,7 @@ function LessonOutcome({ lesson, stats, saved }) {
   }
 
   return (
-    <p role="status" className="text-sub">
+    <p className="text-sub">
       Not passed yet: you need {PASS_ACCURACY}% accuracy and {PASS_WPM} wpm. This time:{' '}
       <span className="text-fg">
         {Math.floor(stats.accuracy)}% and {Math.floor(stats.wpm)} wpm

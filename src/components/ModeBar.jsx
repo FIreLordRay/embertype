@@ -18,7 +18,7 @@ export default function ModeBar({ className = '' }) {
   const selected = modeAmount(settings)
 
   return (
-    <nav aria-label="Test mode" className={`flex flex-wrap items-center justify-center gap-2 text-sm ${className}`}>
+    <div role="group" aria-label="Test settings" className={`flex flex-wrap items-center justify-center gap-2 text-sm ${className}`}>
       {EXTRAS_MODES.includes(mode) && (
         <div role="group" aria-label="Extras" className="flex rounded-xl bg-surface px-1.5 py-1">
           <Toggle pressed={settings.punctuation} onClick={() => update({ punctuation: !settings.punctuation })}>
@@ -55,7 +55,7 @@ export default function ModeBar({ className = '' }) {
           ))}
         </div>
       )}
-    </nav>
+    </div>
   )
 }
 
@@ -109,15 +109,17 @@ function Toggle({ pressed, onClick, children }) {
   )
 }
 
+// aria-disabled rather than disabled: a button that becomes disabled while focused (the last
+// lesson reached with the keyboard) drops focus to the page, where the next Tab restarts.
 function IconButton({ label, disabled, onClick, children }) {
   return (
     <button
       type="button"
       aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
+      aria-disabled={disabled}
+      onClick={disabled ? undefined : onClick}
       onMouseDown={keepFocus}
-      className="rounded-lg p-1.5 text-sub transition-colors hover:text-fg disabled:opacity-30 focus-visible:outline-2 focus-visible:outline-main"
+      className="rounded-lg p-1.5 text-sub transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-main aria-disabled:cursor-default aria-disabled:opacity-30 aria-disabled:hover:text-sub"
     >
       {children}
     </button>

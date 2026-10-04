@@ -78,6 +78,29 @@ function shade(ms, goalMs) {
 }
 
 const dateLabel = (date) => new Date(date).toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })
+const monthLabel = (date) => new Date(date).toLocaleDateString('en', { month: 'short' })
+
+/** A month label is about 3 columns wide: closer than that, two labels overlap ("MayJun"). */
+const MIN_LABEL_GAP = 3
+
+/**
+ * One label per column: the month's name where a new month starts (judged by the column's
+ * Sunday), else ''. The first column always starts "a month", so if the next month begins
+ * within MIN_LABEL_GAP columns, that first, partial month goes unlabelled.
+ */
+function monthLabels(weeks) {
+  const starts = []
+  weeks.forEach((week, i) => {
+    const month = monthLabel(week[0].date) // a column's Sunday is never in the future
+    if (i === 0 || month !== monthLabel(weeks[i - 1][0].date)) starts.push({ i, month })
+  })
+  const labels = weeks.map(() => '')
+  starts.forEach(({ i, month }, n) => {
+    const next = starts[n + 1]
+    if (!next || next.i - i >= MIN_LABEL_GAP) labels[i] = month
+  })
+  return labels
+}
 
 /**
  * A GitHub-style grid: one column per week, Sunday at the top. Each day's square is shaded by
@@ -85,12 +108,7 @@ const dateLabel = (date) => new Date(date).toLocaleDateString('en', { weekday: '
  * Hover a day for its numbers.
  */
 function Calendar({ weeks, goalMs }) {
-  const months = weeks.map((week, i) => {
-    const first = week.find((day) => day !== null)
-    const month = first && new Date(first.date).toLocaleDateString('en', { month: 'short' })
-    const previous = i > 0 && weeks[i - 1][0] && new Date(weeks[i - 1][0].date).toLocaleDateString('en', { month: 'short' })
-    return month !== previous ? month : '' // label a column only where a new month starts
-  })
+  const months = monthLabels(weeks)
 
   return (
     <figure className="flex flex-col gap-2">

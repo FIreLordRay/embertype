@@ -19,15 +19,26 @@ const focused = (tag) => ({
   closest: (selectors) => (selectors.split(',').map((s) => s.trim()).includes(tag) ? {} : null),
 })
 
+/** A fake <body>: where keys go when nothing has focus. */
+const body = { closest: () => null }
+body.ownerDocument = { body, documentElement: {} }
+
 describe('keyToAction', () => {
   it('types printable characters, including space', () => {
     expect(keyToAction(key('a'), 'idle')).toEqual({ type: 'type', char: 'a' })
     expect(keyToAction(key(' '), 'running')).toEqual({ type: 'type', char: ' ' })
   })
 
-  it('maps Backspace and Ctrl+Backspace to deletes', () => {
+  it('maps Backspace to a delete, and Ctrl or Option+Backspace to a whole-word delete', () => {
     expect(keyToAction(key('Backspace'), 'running')).toEqual({ type: 'delete', wholeWord: false })
     expect(keyToAction(key('Backspace', { ctrlKey: true }), 'running')).toEqual({ type: 'delete', wholeWord: true })
+    expect(keyToAction(key('Backspace', { altKey: true }), 'running')).toEqual({ type: 'delete', wholeWord: true }) // Mac
+    expect(keyToAction(key('Backspace', { metaKey: true }), 'running')).toBeNull() // Cmd+Backspace stays the OS's
+  })
+
+  it('treats <body> as the page itself', () => {
+    expect(keyToAction(key('Tab', { target: body }), 'running')).toBe('restart')
+    expect(keyToAction(key(' ', { target: body }), 'running')).toEqual({ type: 'type', char: ' ' })
   })
 
   it('restarts on Tab but keeps Shift+Tab and Tab-on-a-button for keyboard navigation', () => {
@@ -63,5 +74,21 @@ describe('keyToAction', () => {
     expect(keyToAction(key('Enter', { target: focused('button') }), 'finished')).toBeNull()
     // …but letters still go to the test (the hook then moves focus off the button)
     expect(keyToAction(key('a', { target: focused('button') }), 'running')).toEqual({ type: 'type', char: 'a' })
+  })
+
+  it('leaves Tab, Enter and Space to any focused control, not just buttons and links', () => {
+    // Recharts makes charts focusable; <summary> opens the per-second table.
+    for (const control of [focused('svg'), focused('summary')]) {
+      expect(keyToAction(key('Tab', { target: control }), 'finished')).toBeNull()
+      expect(keyToAction(key('Enter', { target: control }), 'finished')).toBeNull()
+      expect(keyToAction(key(' ', { target: control }), 'finished')).toBeNull()
+    }
+  })
+
+  it('on the results screen, handles only the restart keys', () => {
+    expect(keyToAction(key('Tab'), 'finished')).toBe('restart')
+    expect(keyToAction(key('Enter'), 'finished')).toBe('restart')
+    // Space scrolls the page, / and ' open Firefox's quick find, Backspace does nothing.
+    for (const k of [' ', 'a', '/', "'", 'Backspace']) expect(keyToAction(key(k), 'finished')).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
-import { modeKey, movingAverage, timeAgo } from '../../lib/history.js'
+import { movingAverage, testLabel, timeAgo } from '../../lib/history.js'
 import { niceScale } from '../../lib/ticks.js'
 
 /** Same width on both charts, so their test numbers line up exactly. */
@@ -44,7 +44,7 @@ export default function ProgressChart({ results, now }) {
       accuracy: r.accuracy,
       avgAccuracy: avgAccuracy[start + i],
       date: r.date,
-      mode: modeKey(r),
+      test: testLabel(r),
     }))
   }, [results])
 
@@ -73,15 +73,17 @@ export default function ProgressChart({ results, now }) {
       <ChartLabel>wpm</ChartLabel>
       <LineChart
         responsive
+        accessibilityLayer={false}
         data={data}
         syncId="progress"
-        margin={{ top: 6, right: 12, bottom: 0, left: 0 }}
+        margin={{ top: 6, right: 12, bottom: 8, left: 0 }}
         style={{ width: '100%', height: 220 }}
       >
         <CartesianGrid vertical={false} stroke="var(--line)" />
         <XAxis dataKey="n" type="number" domain={xDomain} ticks={xTicks} hide />
         <YAxis
           width={Y_AXIS_WIDTH}
+          interval={0}
           tick={TICK}
           tickLine={false}
           axisLine={false}
@@ -96,6 +98,7 @@ export default function ProgressChart({ results, now }) {
       <ChartLabel>accuracy</ChartLabel>
       <LineChart
         responsive
+        accessibilityLayer={false}
         data={data}
         syncId="progress"
         margin={{ top: 6, right: 12, bottom: 0, left: 0 }}
@@ -114,6 +117,7 @@ export default function ProgressChart({ results, now }) {
         />
         <YAxis
           width={Y_AXIS_WIDTH}
+          interval={0}
           tick={TICK}
           tickLine={false}
           axisLine={false}
@@ -174,7 +178,7 @@ function ProgressTooltip({ active, payload, now }) {
     <div className="rounded-lg border border-line bg-surface px-3 py-2 text-xs shadow-lg">
       {/* Two short header lines rather than one long one: the tooltip has to fit on a phone. */}
       <div className="text-sub">
-        test #{point.n} · {point.mode}
+        test #{point.n} · {point.test}
       </div>
       <div className="mb-1.5 text-sub">{timeAgo(point.date, now)}</div>
       <TooltipRow dot value={Math.floor(point.wpm)} label="wpm" />

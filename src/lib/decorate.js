@@ -12,7 +12,8 @@ const NUMBER_SHARE = 0.12
  * @param {string[]} words plain lowercase words
  * @param {{ punctuation?: boolean, numbers?: boolean }} extras
  * @param {() => number} [rng=Math.random]
- * @returns {string[]} the same words, decorated (a dash is its own entry: "word - word")
+ * @returns {string[]} as many entries as `words`, decorated. A dash is its own entry
+ *   ("word - word") and takes the place of a word, so a words test keeps its length.
  */
 export function decorateWords(words, { punctuation = false, numbers = false } = {}, rng = Math.random) {
   if (!punctuation && !numbers) return words
@@ -44,9 +45,11 @@ export function decorateWords(words, { punctuation = false, numbers = false } = 
     else if (roll < 0.235) word = `"${word}"`
     else if (roll < 0.26) word = `(${word})`
     else if (roll < 0.28 && /^[a-z]+$/i.test(word)) word += "'s"
-    else if (roll < 0.3) {
-      out.push(word)
-      word = '-' // a dash between two words
+    else if (roll < 0.3 && i < words.length - 2) {
+      // A dash between two words, in the next word's slot. At least one word follows it.
+      out.push(word, '-')
+      i++
+      continue
     }
     out.push(word)
   }
