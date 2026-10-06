@@ -2,6 +2,9 @@
 
 A Monkeytype-style typing trainer that also teaches you to touch type.
 
+**Try it: https://firelordray.github.io/embertype/** (your history stays in your own browser;
+nothing is uploaded anywhere).
+
 - **Tests:** time (15 / 30 / 60 s), words (10 / 25 / 50) and quotes (short / medium / long),
   with optional **punctuation** and **numbers**. Live WPM and accuracy, then a results screen
   with a per-second chart.
@@ -43,10 +46,12 @@ history** and **5173 is a sandbox**: experiments in development never touch your
 
 ### Publishing it
 
-`.github/workflows/deploy.yml` publishes the site to **GitHub Pages** on every push to `main`:
-it runs the tests and lint first, and only deploys a build that passes both. The build uses
-relative paths (`base: './'` in `vite.config.js`), so the same files work at
-`http://localhost:4173/` and under `https://<user>.github.io/embertype/`.
+`.github/workflows/deploy.yml` publishes the site to **GitHub Pages**
+(https://firelordray.github.io/embertype/) on every push to `main`: it runs the tests and lint
+first, and only deploys a build that passes both. The build uses relative paths
+(`base: './'` in `vite.config.js`), so the same files work at `http://localhost:4173/` and
+under `/embertype/` on Pages. The live site and your local app keep separate histories
+(saved data belongs to the address); export from one and import into the other to move it.
 
 ---
 
