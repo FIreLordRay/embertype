@@ -27,7 +27,7 @@ export const MODES = {
  */
 export const TRAINING_MODES = ['practice', 'lesson']
 
-/** Modes whose words can get punctuation and numbers mixed in. */
+/** Modes whose words can get punctuation and numbers mixed in, or be tech words. */
 export const EXTRAS_MODES = ['time', 'words']
 
 /** Daily practice goal choices, in minutes. */
@@ -38,7 +38,7 @@ export const DAILY_GOALS = [5, 10, 15, 20, 30]
  *   mode: 'time' | 'words' | 'quote' | 'practice' | 'lesson',
  *   duration: number, wordCount: number, quoteLength: 'short' | 'medium' | 'long',
  *   practiceCount: number, lesson: number,
- *   punctuation: boolean, numbers: boolean,
+ *   punctuation: boolean, numbers: boolean, tech: boolean,
  *   theme: string,
  *   fingerGuide: boolean, paceCaret: boolean, sound: boolean, dailyGoal: number,
  * }} Settings
@@ -54,6 +54,7 @@ export const DEFAULT_SETTINGS = {
   lesson: 1,
   punctuation: false,
   numbers: false,
+  tech: false, // tech jargon instead of common English words
   theme: 'ember',
   fingerGuide: true, // the on-screen keyboard showing which finger to use
   paceCaret: true, // the ghost caret racing your personal best
@@ -62,7 +63,7 @@ export const DEFAULT_SETTINGS = {
 }
 
 /** On/off settings: anything that isn't a real boolean falls back to the default. */
-export const BOOLEAN_SETTINGS = ['punctuation', 'numbers', 'fingerGuide', 'paceCaret', 'sound']
+export const BOOLEAN_SETTINGS = ['punctuation', 'numbers', 'tech', 'fingerGuide', 'paceCaret', 'sound']
 
 /** The length setting for the current mode: seconds in time mode, a word count, quote length or lesson. */
 export function modeAmount(settings) {

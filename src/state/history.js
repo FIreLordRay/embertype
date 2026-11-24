@@ -233,7 +233,7 @@ function isResult(r) {
     r.keys !== null &&
     typeof r.keys === 'object' &&
     Object.values(r.keys).every((v) => Array.isArray(v) && v.length === 2 && v.every(Number.isFinite)) &&
-    [r.punctuation, r.numbers].every((flag) => flag === undefined || typeof flag === 'boolean') &&
+    [r.punctuation, r.numbers, r.tech].every((flag) => flag === undefined || typeof flag === 'boolean') &&
     // Practice drills also record which keys they targeted.
     (r.targets === undefined || (Array.isArray(r.targets) && r.targets.every((c) => typeof c === 'string' && c.length === 1)))
   )

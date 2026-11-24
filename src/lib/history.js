@@ -29,6 +29,7 @@ import { dayKey } from './streak.js'
  *   only the newest ones keep these counts (see compactHistory).
  * @property {boolean} [punctuation]  time/words tests typed with punctuation mixed in
  * @property {boolean} [numbers]      …and with numbers mixed in
+ * @property {boolean} [tech]         …and with tech words instead of common English
  * @property {string[]} [targets]   practice drills only: the keys the drill focused on
  */
 
@@ -50,19 +51,24 @@ export const MODE_KEYS = Object.entries(MODES)
 /** 'time 30', 'words 25', 'quote long', 'practice 10', 'lesson 4', … */
 export const modeKey = (result) => `${result.mode} ${result.amount}`
 
-/** Same punctuation and numbers settings? Only then are two speeds fair to compare. */
-export const sameExtras = (a, b) => Boolean(a.punctuation) === Boolean(b.punctuation) && Boolean(a.numbers) === Boolean(b.numbers)
+/** The extras, in the order labels name them. */
+export const EXTRAS = ['punctuation', 'numbers', 'tech']
 
-/** 'punctuation', 'numbers', 'punctuation and numbers', or '' when both are off. */
-export const extrasLabel = (extras) =>
-  [extras.punctuation && 'punctuation', extras.numbers && 'numbers'].filter(Boolean).join(' and ')
+/** Same punctuation, numbers and tech settings? Only then are two speeds fair to compare. */
+export const sameExtras = (a, b) => EXTRAS.every((extra) => Boolean(a[extra]) === Boolean(b[extra]))
+
+/** 'punctuation', 'numbers and tech', 'punctuation, numbers and tech', or '' when all are off. */
+export const extrasLabel = (extras) => {
+  const on = EXTRAS.filter((extra) => extras[extra])
+  return on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on.at(-1)}` : on.join('')
+}
 
 /**
  * Which test it was, extras included: 'time 30', 'words 25 + punctuation',
  * 'time 60 + punctuation + numbers'. Results with the same label are fair to compare.
  */
 export const testLabel = (result) =>
-  [modeKey(result), result.punctuation && 'punctuation', result.numbers && 'numbers'].filter(Boolean).join(' + ')
+  [modeKey(result), ...EXTRAS.filter((extra) => result[extra])].join(' + ')
 
 /**
  * Attempts and misses for every key in a test's input log.
@@ -86,10 +92,10 @@ export function countKeys(log) {
  *
  * @param {{ id: string, date: number, mode: TestResult['mode'], amount: number | string,
  *           target: string, typed: string, log: import('./typingEngine.js').InputEvent[],
- *           elapsedMs: number, targets?: string[], punctuation?: boolean, numbers?: boolean }} test
+ *           elapsedMs: number, targets?: string[], punctuation?: boolean, numbers?: boolean, tech?: boolean }} test
  * @returns {TestResult | null}
  */
-export function createResult({ id, date, mode, amount, target, typed, log, elapsedMs, targets = [], punctuation = false, numbers = false }) {
+export function createResult({ id, date, mode, amount, target, typed, log, elapsedMs, targets = [], punctuation = false, numbers = false, tech = false }) {
   const stats = computeStats({ target, typed, log, elapsedMs })
   if (stats.correctChars < MIN_CORRECT_CHARS) return null
 
@@ -107,6 +113,7 @@ export function createResult({ id, date, mode, amount, target, typed, log, elaps
     // Only stored when on, so plain tests stay as small as before.
     ...(punctuation && { punctuation }),
     ...(numbers && { numbers }),
+    ...(tech && { tech }),
     ...(targets.length > 0 && { targets }),
   }
 }
@@ -243,7 +250,7 @@ export function personalBests(results) {
  * @param {TestResult[]} results
  * @param {string} key        mode key, e.g. 'time 30'
  * @param {string} excludeId  the test being judged
- * @param {{ punctuation?: boolean, numbers?: boolean }} [extras]
+ * @param {{ punctuation?: boolean, numbers?: boolean, tech?: boolean }} [extras]
  */
 export function previousBest(results, key, excludeId, extras = {}) {
   let best = null

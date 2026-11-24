@@ -231,6 +231,8 @@ describe('testLabel / extrasLabel', () => {
     expect(testLabel(result({ punctuation: true, numbers: true }))).toBe('time 30 + punctuation + numbers')
     expect(extrasLabel({ punctuation: true, numbers: true })).toBe('punctuation and numbers')
     expect(extrasLabel({})).toBe('')
+    expect(testLabel(result({ numbers: true, tech: true }))).toBe('time 30 + numbers + tech')
+    expect(extrasLabel({ punctuation: true, numbers: true, tech: true })).toBe('punctuation, numbers and tech')
   })
 })
 

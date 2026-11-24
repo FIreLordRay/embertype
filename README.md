@@ -6,7 +6,8 @@ A Monkeytype-style typing trainer that also teaches you to touch type.
 nothing is uploaded anywhere).
 
 - **Tests:** time (15 / 30 / 60 s), words (10 / 25 / 50) and quotes (short / medium / long),
-  with optional **punctuation** and **numbers**. Live WPM and accuracy, then a results screen
+  with optional **punctuation**, **numbers** and **tech** words (500 terms from code, the web,
+  data, git and IT). Live WPM and accuracy, then a results screen
   with a per-second chart.
 - **Learn:** a 15-lesson touch-typing course, one or two keys at a time, with a **finger
   guide**: a 3D keyboard under the words that lights the next key and the finger to use, and
@@ -36,7 +37,7 @@ on a Mac) delete word · <kbd>enter</kbd> next test (on the results screen) ·
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (hot reload)
-npm test         # 171 unit tests: engine, metrics, keyboard, history and its storage, lessons, streaks …
+npm test         # 172 unit tests: engine, metrics, keyboard, history and its storage, lessons, streaks …
 npm run lint     # includes the React Hooks / React Compiler rules
 npm run build    # production build in dist/
 ```

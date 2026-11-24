@@ -28,7 +28,7 @@ const ResultsDashboard = lazy(loadResults)
  * settings instead, so switching them on or off doesn't restart the test.
  *
  * @param {{ mode: 'time' | 'words' | 'quote' | 'practice' | 'lesson', amount: number | string,
- *           extras: { punctuation?: boolean, numbers?: boolean }, onRestart: () => void }} props
+ *           extras: { punctuation?: boolean, numbers?: boolean, tech?: boolean }, onRestart: () => void }} props
  */
 export default function TypingTest({ mode, amount, extras, onRestart }) {
   const { results, addResult } = useHistory()

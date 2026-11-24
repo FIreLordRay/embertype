@@ -31,14 +31,14 @@ function Layout() {
   const settings = useSettings()
   const { mode } = settings
   const amount = modeAmount(settings) // seconds, a word count, a quote length or a lesson number
-  // Punctuation and numbers only exist for time and words tests.
-  const extras = EXTRAS_MODES.includes(mode) ? { punctuation: settings.punctuation, numbers: settings.numbers } : {}
+  // Punctuation, numbers and tech words only exist for time and words tests.
+  const extras = EXTRAS_MODES.includes(mode) ? { punctuation: settings.punctuation, numbers: settings.numbers, tech: settings.tech } : {}
 
   // Bumping this remounts <TypingTest>: a brand-new test with completely fresh state.
   const [testNumber, setTestNumber] = useState(0)
   const restart = useCallback(() => setTestNumber((n) => n + 1), [])
   // Ties a test to everything that decides its words: change any of them → new test.
-  const testKey = `${mode}-${amount}-${Boolean(extras.punctuation)}-${Boolean(extras.numbers)}-${testNumber}`
+  const testKey = `${mode}-${amount}-${Boolean(extras.punctuation)}-${Boolean(extras.numbers)}-${Boolean(extras.tech)}-${testNumber}`
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-8 px-4 py-6 sm:px-8 sm:py-8">

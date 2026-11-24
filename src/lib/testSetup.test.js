@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { QUOTES } from '../data/quotes.js'
+import { TECH_WORDS } from '../data/tech.js'
 import { knownLetters } from './lessons.js'
 import { buildTest, MAX_WORDS_PER_SECOND } from './testSetup.js'
 
@@ -25,6 +26,15 @@ describe('buildTest', () => {
     expect(words.at(-1)).toMatch(/[.?!]$/)
     const quote = buildTest({ mode: 'quote', amount: 'short', punctuation: true, numbers: true }, [])
     expect(quote.extras).toEqual({}) // quotes are typed exactly as written
+  })
+
+  it('tech: words come from the tech list, for time and words tests only', () => {
+    const test = buildTest({ mode: 'words', amount: 50, tech: true }, [])
+    for (const word of test.words) expect(TECH_WORDS).toContain(word)
+    expect(new Set(TECH_WORDS).size).toBe(500) // 500 different words
+    for (const word of TECH_WORDS) expect(word).toMatch(/^[a-z]+$/)
+    expect(test.extras.tech).toBe(true)
+    expect(buildTest({ mode: 'quote', amount: 'short', tech: true }, []).extras).toEqual({})
   })
 
   it('quote mode: the words of one real quote, with its author', () => {

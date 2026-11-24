@@ -86,7 +86,7 @@ export default function ResultsDashboard({ state, mode, amount, setup, onRestart
       </div>
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
-        <Tile label="test" value={testName} note={testNote(mode, amount, quote, extrasLabel)} />
+        <Tile label="test" value={testName} note={testNote(mode, amount, quote, extras)} />
         <Tile label="raw" value={Math.floor(stats.raw)} note="every keystroke counted" />
         <Tile label="errors" value={stats.errors} note="wrong keys, fixed or not" />
         <Tile label="characters" value={`${stats.correctChars}/${stats.incorrectChars}`} note="correct / incorrect" />
@@ -124,11 +124,12 @@ export default function ResultsDashboard({ state, mode, amount, setup, onRestart
 }
 
 /** The small print under the test name: what kind of words they were. */
-function testNote(mode, amount, quote, extrasLabel) {
+function testNote(mode, amount, quote, extras) {
   if (mode === 'quote') return `by ${quote.author}`
   if (mode === 'lesson') return LESSONS[amount - 1].title
   if (mode === 'practice') return 'drill'
-  return extrasLabel ? `english, ${extrasLabel}` : 'english'
+  const rest = describeExtras({ ...extras, tech: false })
+  return [extras.tech ? 'tech' : 'english', rest].filter(Boolean).join(', ')
 }
 
 /**

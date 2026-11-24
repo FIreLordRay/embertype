@@ -1,4 +1,4 @@
-import { AtSign, ChevronLeft, ChevronRight, Clock, GraduationCap, Hash, Quote, Target, WholeWord } from 'lucide-react'
+import { AtSign, ChevronLeft, ChevronRight, Clock, GraduationCap, Hash, Quote, Target, Terminal, WholeWord } from 'lucide-react'
 import { LESSONS } from '../config/lessons.js'
 import { EXTRAS_MODES, modeAmount, MODES } from '../config/modes.js'
 import { useSettings } from '../state/settings.js'
@@ -7,7 +7,7 @@ const ICONS = { time: Clock, words: WholeWord, quote: Quote, practice: Target, l
 
 /**
  * The test settings, as up to three pills that wrap onto a second line on narrow screens:
- *   [@ punctuation  # numbers]   [time words quote practice learn]   [15 30 60]
+ *   [@ punctuation  # numbers  >_ tech]   [time words quote practice learn]   [15 30 60]
  * The extras only apply to time and words tests; in learn mode the lengths become a lesson
  * picker. Changing anything changes the settings, which remounts <TypingTest> with a new test.
  */
@@ -28,6 +28,10 @@ export default function ModeBar({ className = '' }) {
           <Toggle pressed={settings.numbers} onClick={() => update({ numbers: !settings.numbers })}>
             <Hash size={15} aria-hidden="true" />
             <Label>numbers</Label>
+          </Toggle>
+          <Toggle pressed={settings.tech} onClick={() => update({ tech: !settings.tech })}>
+            <Terminal size={15} aria-hidden="true" />
+            <Label>tech</Label>
           </Toggle>
         </div>
       )}

@@ -65,6 +65,7 @@ describe('sanitizeSettings', () => {
       lesson: 7,
       punctuation: true,
       numbers: true,
+      tech: true,
       theme: 'cyberpunk',
       fingerGuide: false,
       paceCaret: false,

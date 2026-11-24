@@ -5,6 +5,7 @@ import {
   filterByMode,
   formatDuration,
   isPractice,
+  EXTRAS,
   keyStats,
   MODE_KEYS,
   modeKey,
@@ -185,15 +186,15 @@ function Tile({ label, value, note }) {
 const TH = 'pb-2 pr-3 font-normal last:pr-0'
 const TD = 'py-2 pr-3 last:pr-0'
 
-/** The variants of a test with extras, written the way testLabel writes them. */
-const EXTRAS = [' + punctuation', ' + numbers', ' + punctuation + numbers']
+/** Every variant of a test with extras (' + numbers', ' + punctuation + tech', …), written the way testLabel writes them. */
+const VARIANTS = EXTRAS.reduce((acc, extra) => [...acc, ...acc.map((v) => `${v} + ${extra}`), ` + ${extra}`], [])
 
 /**
  * Every test, always (the selected one highlighted, missing ones with a dash), plus a row
- * for each variant with punctuation or numbers you've taken: those are different tests.
+ * for each variant with punctuation, numbers or tech words you've taken: those are different tests.
  */
 function PersonalBests({ bests, active, now }) {
-  const rows = MODE_KEYS.flatMap((key) => [key, ...EXTRAS.map((extras) => key + extras).filter((label) => bests.has(label))])
+  const rows = MODE_KEYS.flatMap((key) => [key, ...VARIANTS.map((variant) => key + variant).filter((label) => bests.has(label))])
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-sm text-sub">personal bests</h3>
